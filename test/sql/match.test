@@ -1,0 +1,106 @@
+# name: test/sql/match.test
+# description: Probabilistic entity-resolution table function (match_resolve)
+# group: [vgi_match]
+
+require-env VGI_MATCH_WORKER
+
+# NOTE: `require vgi` SILENTLY SKIPS in haybarn-unittest. Use explicit LOAD.
+statement ok
+LOAD vgi;
+
+statement ok
+ATTACH 'match' AS match (TYPE vgi, LOCATION '${VGI_MATCH_WORKER}');
+
+# A small customers relation with KNOWN duplicates:
+#   rows 1,2,3 = John / Jon / Johnny Smith   (same person, shared email)
+#   rows 4,5   = Jane / Janet Doe            (same person, shared email)
+#   row  6     = Robert Jones                (singleton)
+#   row  7     = Alice Jones                 (singleton; shares surname with 6)
+statement ok
+CREATE TEMP TABLE customers AS
+SELECT * FROM (VALUES
+  (1, 'John',   'Smith', 'jsmith@example.com',     'New York'),
+  (2, 'Jon',    'Smith', 'jsmith@example.com',     'New York'),
+  (3, 'Johnny', 'Smith', 'jsmith@example.com',     'New York'),
+  (4, 'Jane',   'Doe',   'jane.doe@example.com',   'Los Angeles'),
+  (5, 'Janet',  'Doe',   'jane.doe@example.com',   'Los Angeles'),
+  (6, 'Robert', 'Jones', 'rjones@example.com',     'San Francisco'),
+  (7, 'Alice',  'Jones', 'alice.j@example.com',    'Seattle')
+) AS t(row_id, first_name, last_name, email, city);
+
+# Output is the input rows unchanged plus cluster_id + match_probability: one
+# row per input record.
+query I
+SELECT count(*) FROM match.match_resolve(
+  (SELECT * FROM customers),
+  columns := 'first_name,last_name,email'
+);
+----
+7
+
+# The three John/Jon/Johnny Smith rows resolve to ONE cluster.
+query I
+SELECT count(DISTINCT cluster_id)
+FROM match.match_resolve((SELECT * FROM customers),
+                         columns := 'first_name,last_name,email')
+WHERE row_id IN (1, 2, 3);
+----
+1
+
+# The two Jane/Janet Doe rows resolve to ONE cluster.
+query I
+SELECT count(DISTINCT cluster_id)
+FROM match.match_resolve((SELECT * FROM customers),
+                         columns := 'first_name,last_name,email')
+WHERE row_id IN (4, 5);
+----
+1
+
+# The Smith cluster and the Doe cluster are DIFFERENT (no over-merging).
+query I
+WITH r AS (
+  SELECT row_id, cluster_id
+  FROM match.match_resolve((SELECT * FROM customers),
+                           columns := 'first_name,last_name,email')
+)
+SELECT (SELECT cluster_id FROM r WHERE row_id = 1)
+     <> (SELECT cluster_id FROM r WHERE row_id = 4);
+----
+true
+
+# All seven records collapse to exactly four resolved entities
+# (Smith, Doe, Robert Jones, Alice Jones).
+query I
+SELECT count(DISTINCT cluster_id)
+FROM match.match_resolve((SELECT * FROM customers),
+                         columns := 'first_name,last_name,email');
+----
+4
+
+# Passthrough columns survive untouched: the email on row 1 is unchanged.
+query I
+SELECT email = 'jsmith@example.com'
+FROM match.match_resolve((SELECT * FROM customers),
+                         columns := 'first_name,last_name,email')
+WHERE row_id = 1;
+----
+true
+
+# match_probability is a valid probability in [0, 1] for every row.
+query I
+SELECT count(*)
+FROM match.match_resolve((SELECT * FROM customers),
+                         columns := 'first_name,last_name,email')
+WHERE match_probability < 0.0 OR match_probability > 1.0;
+----
+0
+
+# A missing comparison column -> a clear error, never a crash.
+statement error
+SELECT * FROM match.match_resolve((SELECT * FROM customers),
+                                  columns := 'first_name,nope');
+----
+not found
+
+statement ok
+DETACH match;
