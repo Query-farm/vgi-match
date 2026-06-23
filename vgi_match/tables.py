@@ -35,8 +35,9 @@ import pyarrow as pa
 from vgi.arguments import Arg, TableInput
 from vgi.invocation import BindResponse
 from vgi.metadata import FunctionExample
-from vgi.table_buffering_function import OutputCollector, TableBufferingParams
+from vgi.table_buffering_function import TableBufferingParams
 from vgi.table_function import BindParams
+from vgi_rpc import OutputCollector
 
 from . import linkage
 from .buffering import DrainState, SinkBuffer
@@ -81,6 +82,15 @@ def _parse_columns(spec: str) -> list[str]:
 
 @dataclass(slots=True, frozen=True)
 class MatchResolveArgs:
+    """Bound arguments for ``match_resolve``.
+
+    Attributes:
+        data: The relation of records to resolve/dedup (positional ``Arg(0)``).
+        columns: Comma-separated comparison columns to match on.
+        threshold: Match-probability threshold in ``[0, 1]`` for linking pairs.
+        train: Whether to run Splink's opt-in unsupervised EM refinement.
+    """
+
     data: Annotated[
         TableInput,
         Arg(0, doc="Relation of records to resolve/dedup (the rows to cluster)."),
@@ -117,6 +127,8 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
     FunctionArguments: ClassVar[type] = MatchResolveArgs
 
     class Meta:
+        """VGI function metadata (name, description, categories, examples)."""
+
         name = "match_resolve"
         description = (
             "Probabilistic entity resolution / record linkage / dedup (Splink, MIT). "
@@ -138,6 +150,15 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
 
     @classmethod
     def on_bind(cls, params: BindParams[MatchResolveArgs]) -> BindResponse:
+        """Build the dynamic output schema from the bound input relation's schema.
+
+        Args:
+            params: The bind-call context carrying the input relation schema.
+
+        Returns:
+            A ``BindResponse`` whose output schema is the passthrough input
+            columns plus ``cluster_id`` and ``match_probability``.
+        """
         input_schema = params.bind_call.input_schema
         assert input_schema is not None
         return BindResponse(output_schema=_output_schema(input_schema))
@@ -146,6 +167,15 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
     def initial_finalize_state(
         cls, finalize_state_id: bytes, params: TableBufferingParams[MatchResolveArgs]
     ) -> DrainState:
+        """Seed the per-finalize-stream cursor (emit once, then finish).
+
+        Args:
+            finalize_state_id: The finalize bucket id.
+            params: The buffering-function call context.
+
+        Returns:
+            A fresh ``DrainState`` with ``done=False``.
+        """
         return DrainState()
 
     @classmethod
@@ -156,6 +186,17 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         state: DrainState,
         out: OutputCollector,
     ) -> None:
+        """Reassemble the buffered relation, run Splink once, and emit one batch.
+
+        Args:
+            params: The buffering-function call context (args + output schema).
+            finalize_state_id: The finalize bucket id.
+            state: The drain cursor; ensures the result batch is emitted once.
+            out: The output collector to emit the result batch and finish on.
+
+        Raises:
+            MatchError: If the buffered input relation has no rows.
+        """
         if state.done:
             out.finish()
             return

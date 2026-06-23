@@ -108,8 +108,7 @@ def _require_columns(df: pd.DataFrame, columns: list[str]) -> None:
     """
     if not columns:
         raise MatchError(
-            "no comparison columns supplied; pass columns := 'col1,col2,...' "
-            "naming the fields to match records on"
+            "no comparison columns supplied; pass columns := 'col1,col2,...' naming the fields to match records on"
         )
     have = set(df.columns)
     missing = [c for c in columns if c not in have]
@@ -240,7 +239,7 @@ def resolve(
     train: bool = False,
     prior: float = _DEFAULT_PRIOR,
     settings_json: dict[str, Any] | str | None = None,
-) -> dict[str, list]:
+) -> dict[str, list[Any]]:
     """Resolve entities in a buffered relation: append ``cluster_id`` per row.
 
     Runs the full Splink pipeline -- build/load a model -> predict pairwise
@@ -319,9 +318,7 @@ def resolve(
         _train(linker, columns)
 
     preds = linker.inference.predict(threshold_match_probability=threshold)
-    clusters = linker.clustering.cluster_pairwise_predictions_at_threshold(
-        preds, threshold_match_probability=threshold
-    )
+    clusters = linker.clustering.cluster_pairwise_predictions_at_threshold(preds, threshold_match_probability=threshold)
     cluster_df = clusters.as_pandas_dataframe()
 
     # Per-row best match probability: the strongest pairwise probability that
@@ -333,7 +330,7 @@ def resolve(
     cluster_lookup = dict(zip(cluster_df[_UID].tolist(), cluster_df[_CLUSTER_COL].tolist(), strict=True))
     cluster_ids = _stable_cluster_strings([cluster_lookup.get(i) for i in range(len(work))])
 
-    out: dict[str, list] = {}
+    out: dict[str, list[Any]] = {}
     for col in df.columns:
         out[str(col)] = work[col].tolist()
     out[_CLUSTER_COL] = cluster_ids
