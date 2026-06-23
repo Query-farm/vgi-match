@@ -4,7 +4,9 @@
 
 <p align="center"><em>A <a href="https://query.farm">Query.Farm</a> VGI worker for DuckDB.</em></p>
 
-# vgi-match
+# Probabilistic Entity Resolution & Record Linkage in DuckDB
+
+> **vgi-match** · a [Query.Farm](https://query.farm) VGI worker · powered by Splink
 
 A [VGI](https://query.farm) worker that brings **probabilistic entity
 resolution** — record linkage and deduplication — to DuckDB/SQL, backed by
