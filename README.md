@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="docs/vgi-logo.png" alt="Vector Gateway Interface (VGI)" width="320">
+</p>
+
+<p align="center"><em>A <a href="https://query.farm">Query.Farm</a> VGI worker for DuckDB.</em></p>
+
 # vgi-match
 
 A [VGI](https://query.farm) worker that brings **probabilistic entity
@@ -135,3 +141,12 @@ relation) is a **planned extension**, not yet exposed as a SQL function — see
 > statically linked into `vgi-match`, but downstream redistributors who bundle
 > the full dependency closure should be aware of it. Everything `vgi-match`
 > itself ships is MIT.
+
+---
+
+## Authorship & License
+
+Written by [Query.Farm](https://query.farm) — every VGI worker is designed and built by Query.Farm.
+
+Copyright 2026 Query Farm LLC - https://query.farm
+
