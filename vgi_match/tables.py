@@ -57,6 +57,23 @@ _PROB_FIELD = mfield(
 )
 
 
+# VGI509: self-contained, catalog-qualified examples the linter executes verbatim.
+# Each uses an inline VALUES relation so it runs with no pre-existing tables.
+_EXECUTABLE_EXAMPLES = (
+    '[{"description": "Deduplicate three records on name + email; the two John/Jon '
+    'Smith rows resolve to one cluster, Jane Doe to another.", '
+    '"sql": "SELECT first_name, last_name, cluster_id FROM '
+    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','j@x.com'),"
+    "('Jon','Smith','j@x.com'),('Jane','Doe','jane@y.com')) AS "
+    "t(first_name,last_name,email)), columns := 'first_name,last_name,email') "
+    'ORDER BY cluster_id, first_name"}, '
+    '{"description": "Count rows per resolved cluster to find duplicate groups.", '
+    '"sql": "SELECT count(DISTINCT cluster_id) AS entities FROM '
+    "match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),"
+    "('Bob','Ng')) AS t(first_name,last_name)), columns := 'first_name,last_name')\"}]"
+)
+
+
 def _output_schema(input_schema: pa.Schema) -> pa.Schema:
     """Passthrough every input field, then append cluster_id + match_probability.
 
@@ -142,32 +159,90 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         examples = [
             FunctionExample(
                 sql=(
-                    "SELECT * FROM match.match_resolve((SELECT * FROM customers), "
+                    "SELECT * FROM match.match_resolve((SELECT * FROM (VALUES "
+                    "('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
+                    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
                     "columns := 'first_name,last_name,email') ORDER BY cluster_id"
                 ),
-                description="Dedup customers on name + email; rows sharing cluster_id are the same entity",
+                description="Dedup records on name + email; rows sharing cluster_id are the same entity",
             ),
             FunctionExample(
                 sql=(
                     "SELECT cluster_id, count(*) AS rows_in_entity "
-                    "FROM match.match_resolve((SELECT * FROM contacts), "
-                    "columns := 'full_name,phone') "
-                    "GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"
+                    "FROM match.match_resolve((SELECT * FROM (VALUES "
+                    "('Ann Lee','555-1'),('Anne Lee','555-1'),('Bob Ng','555-2')) "
+                    "AS t(full_name,phone)), columns := 'full_name,phone') "
+                    "GROUP BY cluster_id ORDER BY rows_in_entity DESC"
                 ),
-                description="Find duplicate contact groups (clusters with more than one row) and their sizes",
+                description="Find contact groups by clustering on name + phone and counting cluster sizes",
             ),
             FunctionExample(
                 sql=(
-                    "SELECT * FROM match.match_resolve((SELECT * FROM customers), "
-                    "columns := 'first_name,last_name,email', threshold := 0.9, train := true) "
-                    "WHERE match_probability >= 0.95"
+                    "SELECT * FROM match.match_resolve((SELECT * FROM (VALUES "
+                    "('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
+                    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
+                    "columns := 'first_name,last_name,email', threshold := 0.9) "
+                    "WHERE match_probability >= 0.5 ORDER BY cluster_id"
                 ),
-                description="Stricter resolution: raise the link threshold, opt into EM training, "
-                "keep only high-confidence matches",
+                description="Stricter resolution: raise the link threshold and keep only the more-confident matches",
             ),
         ]
         tags = {
-            "vgi.columns_md": (
+            "vgi.title": "Resolve & Cluster Entities",
+            "vgi.keywords": (
+                "entity resolution, record linkage, dedup, deduplication, fuzzy matching, "
+                "cluster, cluster_id, match probability, splink, jaro-winkler, levenshtein, "
+                "customer matching, duplicate detection"
+            ),
+            "vgi.source_url": ("https://github.com/Query-farm/vgi-match/blob/main/vgi_match/tables.py"),
+            "vgi.doc_llm": (
+                "Probabilistic entity resolution over a whole SQL relation. Pass a relation "
+                "of records as the first positional argument (a `(SELECT ...)` subquery) and "
+                "name the comparison columns with `columns := 'col1,col2,...'`. The function "
+                "buffers every input row, runs Splink's Fellegi-Sunter model with fuzzy "
+                "comparisons (Jaro-Winkler on name-like columns, Levenshtein elsewhere), links "
+                "candidate pairs above `threshold` (default 0.5), and assigns each row a "
+                "`cluster_id` (rows sharing one are the same real-world entity) plus a "
+                "`match_probability`. Every input column is returned unchanged. Use it to "
+                "deduplicate customer/contact/product lists or to link records that refer to "
+                "the same entity. Inputs: the relation, `columns`, optional `threshold` and "
+                "`train` (opt-in unsupervised EM, weak on tiny inputs). Edge cases: an empty "
+                "relation raises an error; singletons get their own cluster_id and a "
+                "match_probability of 1.0; an input column already named `cluster_id` or "
+                "`match_probability` is replaced by the produced one."
+            ),
+            "vgi.doc_md": (
+                "# match_resolve\n\n"
+                "Cluster the rows of a relation into **resolved entities** "
+                "(deduplication / record linkage) using probabilistic matching.\n\n"
+                "## What it does\n\n"
+                "Buffers the whole input relation, scores every candidate record pair with "
+                "[Splink](https://github.com/moj-analytical-services/splink)'s Fellegi-Sunter "
+                "model (fuzzy Jaro-Winkler / Levenshtein comparisons), links pairs above the "
+                "threshold, and groups linked records into clusters.\n\n"
+                "## Usage\n\n"
+                "```sql\n"
+                "SELECT * FROM match.match_resolve(\n"
+                "  (SELECT * FROM customers),\n"
+                "  columns := 'first_name,last_name,email',\n"
+                "  threshold := 0.5\n"
+                ") ORDER BY cluster_id;\n"
+                "```\n\n"
+                "- `columns` — comma-separated comparison columns to match on (required).\n"
+                "- `threshold` — match-probability cutoff in `[0,1]` for linking pairs "
+                "(default `0.5`).\n"
+                "- `train` — opt into Splink's unsupervised EM refinement (default `false`; "
+                "weak on tiny inputs).\n\n"
+                "## Returns\n\n"
+                "Every input column unchanged, plus `cluster_id` (VARCHAR) and "
+                "`match_probability` (DOUBLE).\n\n"
+                "## Notes\n\n"
+                "- Singletons get their own `cluster_id` and `match_probability = 1.0`.\n"
+                "- An empty input relation raises an error.\n"
+                "- This is a buffer-all-then-compute operator; block tightly for very large "
+                "inputs."
+            ),
+            "vgi.result_columns_md": (
                 "Returns **every input column unchanged** (passthrough), then appends "
                 "these two columns:\n\n"
                 "| column | type | description |\n"
@@ -181,6 +256,7 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "has a `cluster_id` or `match_probability` column it is replaced by the "
                 "produced one."
             ),
+            "vgi.executable_examples": _EXECUTABLE_EXAMPLES,
         }
 
     @classmethod
