@@ -24,13 +24,53 @@ from vgi_match.tables import TABLE_FUNCTIONS
 
 _FUNCTIONS: list[type] = [*TABLE_FUNCTIONS]
 
+_CATALOG_DESCRIPTION_LLM = (
+    "Probabilistic entity resolution / record linkage / dedup over a SQL relation. "
+    "Pass a relation of records, name the comparison columns, and get the input rows "
+    "back unchanged plus a cluster_id (rows sharing it are the same real-world entity) "
+    "and a match_probability. Backed by Splink's Fellegi-Sunter model with fuzzy "
+    "(Jaro-Winkler / Levenshtein) comparisons. Use to dedup customers, contacts, "
+    "products, or any list with messy duplicates, and to link records that refer to "
+    "the same entity. One whole-relation table function: match_resolve."
+)
+_CATALOG_DESCRIPTION_MD = (
+    "# match\n\n"
+    "Probabilistic **entity resolution / record linkage / deduplication** for DuckDB, "
+    "backed by [Splink](https://github.com/moj-analytical-services/splink) "
+    "(Fellegi-Sunter model with fuzzy comparisons).\n\n"
+    "Table function: `match_resolve(relation, columns := '...', threshold := 0.5, "
+    "train := false)` returns the input rows unchanged plus `cluster_id` and "
+    "`match_probability`."
+)
+_SCHEMA_DESCRIPTION_LLM = (
+    "Entity-resolution functions: cluster a relation's rows into resolved entities "
+    "(dedup / record linkage) on chosen comparison columns and return each row's "
+    "cluster_id and match_probability."
+)
+_SCHEMA_DESCRIPTION_MD = "Probabilistic entity-resolution / record-linkage / dedup functions over Apache Arrow."
+
 _MATCH_CATALOG = Catalog(
     name="match",
     default_schema="main",
+    comment="Probabilistic entity resolution / record linkage / dedup (Splink) for SQL.",
+    source_url="https://github.com/Query-farm/vgi-match",
+    tags={
+        "vgi.description_llm": _CATALOG_DESCRIPTION_LLM,
+        "vgi.description_md": _CATALOG_DESCRIPTION_MD,
+        "vgi.author": "Query.Farm",
+        "vgi.copyright": "Copyright 2026 Query Farm LLC - https://query.farm",
+        "vgi.license": "MIT",
+        "vgi.support_contact": "https://github.com/Query-farm/vgi-match/issues",
+        "vgi.support_policy_url": "https://github.com/Query-farm/vgi-match/blob/main/README.md",
+    },
     schemas=[
         Schema(
             name="main",
             comment="Probabilistic entity resolution / record linkage / dedup (Splink) for SQL",
+            tags={
+                "vgi.description_llm": _SCHEMA_DESCRIPTION_LLM,
+                "vgi.description_md": _SCHEMA_DESCRIPTION_MD,
+            },
             functions=list(_FUNCTIONS),
         ),
     ],

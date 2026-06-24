@@ -127,15 +127,16 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
     FunctionArguments: ClassVar[type] = MatchResolveArgs
 
     class Meta:
-        """VGI function metadata (name, description, categories, examples)."""
+        """VGI function metadata (name, description, categories, examples, tags)."""
 
         name = "match_resolve"
         description = (
             "Probabilistic entity resolution / record linkage / dedup (Splink, MIT). "
             "Buffers the whole input relation, runs Splink's Fellegi-Sunter model "
-            "with unsupervised EM training on the comparison columns, and returns the "
-            "input rows unchanged plus an appended cluster_id (same entity = same id) "
-            "and match_probability. columns := 'col1,col2,...' names the fields to match on."
+            "over the comparison columns, and returns the input rows unchanged plus "
+            "an appended cluster_id (same entity = same id) and match_probability. "
+            "columns := 'col1,col2,...' names the fields to match on; threshold := 0.5 "
+            "sets the linking cutoff; train := true opts into unsupervised EM refinement."
         )
         categories = ["entity-resolution", "record-linkage", "dedup"]
         examples = [
@@ -145,8 +146,42 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                     "columns := 'first_name,last_name,email') ORDER BY cluster_id"
                 ),
                 description="Dedup customers on name + email; rows sharing cluster_id are the same entity",
-            )
+            ),
+            FunctionExample(
+                sql=(
+                    "SELECT cluster_id, count(*) AS rows_in_entity "
+                    "FROM match.match_resolve((SELECT * FROM contacts), "
+                    "columns := 'full_name,phone') "
+                    "GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"
+                ),
+                description="Find duplicate contact groups (clusters with more than one row) and their sizes",
+            ),
+            FunctionExample(
+                sql=(
+                    "SELECT * FROM match.match_resolve((SELECT * FROM customers), "
+                    "columns := 'first_name,last_name,email', threshold := 0.9, train := true) "
+                    "WHERE match_probability >= 0.95"
+                ),
+                description="Stricter resolution: raise the link threshold, opt into EM training, "
+                "keep only high-confidence matches",
+            ),
         ]
+        tags = {
+            "vgi.columns_md": (
+                "Returns **every input column unchanged** (passthrough), then appends "
+                "these two columns:\n\n"
+                "| column | type | description |\n"
+                "|---|---|---|\n"
+                "| `cluster_id` | VARCHAR | Resolved-entity id; rows sharing a `cluster_id` "
+                "are the same entity (a singleton entity gets its own id). |\n"
+                "| `match_probability` | DOUBLE | Strongest pairwise match probability "
+                "linking the row into its cluster, in `[0, 1]` (`1.0` for a singleton). |\n\n"
+                "The passthrough columns vary by input: they are exactly the schema of the "
+                "`(SELECT ...)` relation passed as the first argument. If the input already "
+                "has a `cluster_id` or `match_probability` column it is replaced by the "
+                "produced one."
+            ),
+        }
 
     @classmethod
     def on_bind(cls, params: BindParams[MatchResolveArgs]) -> BindResponse:
