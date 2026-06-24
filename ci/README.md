@@ -28,6 +28,31 @@ extension from the Haybarn community channel:
    extension cache once, then runs the suite in a single `haybarn-unittest`
    invocation. Any failed assertion exits non-zero and fails the job.
 
+## Three transports (subprocess / http / unix)
+
+The same suite runs over every VGI transport. The vgi extension picks the
+transport from the ATTACH LOCATION string `run-integration.sh` builds per the
+`TRANSPORT` env var (`subprocess` default | `http` | `unix`):
+
+- **subprocess** — `VGI_MATCH_WORKER=.venv/bin/vgi-match`; the extension spawns
+  the worker per query over stdin/stdout (current behavior).
+- **http** — the script boots `vgi-match --http --port 0 --port-file <f>` (cwd =
+  the stage dir), polls the port-file, and sets
+  `VGI_MATCH_WORKER=http://127.0.0.1:<port>`. The HTTP transport runs the
+  worker-RPC over DuckDB's httpfs, so the script injects
+  `INSTALL httpfs FROM core; LOAD httpfs;` after each `LOAD vgi;` in the staged
+  tests (http leg only) — without it the ATTACH errors with "VGI HTTP transport
+  requires the httpfs extension", which the runner silently SKIPs (a fake pass
+  the run-step guard catches). HTTP needs the `vgi-python[http]` extra
+  (waitress) — installed via `uv sync --extra http`.
+- **unix** — the script boots `vgi-match --unix <sock>` (cwd = the stage dir),
+  polls for the socket, and sets `VGI_MATCH_WORKER=unix://<sock>`.
+
+The CI `integration` job is a matrix of `transport × os`. For http/unix the
+script boots the worker out-of-band and trap-kills it on exit; the run step
+fails the leg if the runner reports "All tests were skipped" (the silent-skip
+guard).
+
 ## Run it locally
 
 ```bash
