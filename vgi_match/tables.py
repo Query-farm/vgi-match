@@ -190,11 +190,10 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         tags = {
             "vgi.title": "Resolve & Cluster Entities",
             "vgi.keywords": (
-                "entity resolution, record linkage, dedup, deduplication, fuzzy matching, "
-                "cluster, cluster_id, match probability, splink, jaro-winkler, levenshtein, "
-                "customer matching, duplicate detection"
+                '["entity resolution", "record linkage", "dedup", "deduplication", '
+                '"fuzzy matching", "cluster", "cluster_id", "match probability", "splink", '
+                '"jaro-winkler", "levenshtein", "customer matching", "duplicate detection"]'
             ),
-            "vgi.source_url": ("https://github.com/Query-farm/vgi-match/blob/main/vgi_match/tables.py"),
             "vgi.doc_llm": (
                 "Probabilistic entity resolution over a whole SQL relation. Pass a relation "
                 "of records as the first positional argument (a `(SELECT ...)` subquery) and "

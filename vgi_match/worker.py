@@ -103,8 +103,9 @@ _MATCH_CATALOG = Catalog(
     tags={
         "vgi.title": "Entity Resolution & Record Linkage",
         "vgi.keywords": (
-            "entity resolution, record linkage, deduplication, dedup, fuzzy matching, "
-            "splink, fellegi-sunter, clustering, customer matching, duplicate detection"
+            '["entity resolution", "record linkage", "deduplication", "dedup", '
+            '"fuzzy matching", "splink", "fellegi-sunter", "clustering", '
+            '"customer matching", "duplicate detection"]'
         ),
         "vgi.doc_llm": _CATALOG_DOC_LLM,
         "vgi.doc_md": _CATALOG_DOC_MD,
@@ -121,14 +122,14 @@ _MATCH_CATALOG = Catalog(
             tags={
                 "vgi.title": "Match — main",
                 "vgi.keywords": (
-                    "entity resolution, record linkage, dedup, deduplication, match_resolve, "
-                    "fuzzy matching, clustering, cluster_id, match probability, splink"
+                    '["entity resolution", "record linkage", "dedup", "deduplication", '
+                    '"match_resolve", "fuzzy matching", "clustering", "cluster_id", '
+                    '"match probability", "splink"]'
                 ),
                 # VGI123 classifying tags (bare keys: domain/category/topic) for faceting.
                 "domain": "data-quality",
                 "category": "entity-resolution",
                 "topic": "record-linkage",
-                "vgi.source_url": ("https://github.com/Query-farm/vgi-match/blob/main/vgi_match/worker.py"),
                 "vgi.doc_llm": _SCHEMA_DOC_LLM,
                 "vgi.doc_md": _SCHEMA_DOC_MD,
                 "vgi.example_queries": _SCHEMA_EXAMPLE_QUERIES,

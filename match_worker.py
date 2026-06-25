@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
-#     "vgi-python>=0.8.4",
+#     "vgi-python>=0.8.5",
 #     "splink>=4",
 #     "duckdb",
 #     "pandas",

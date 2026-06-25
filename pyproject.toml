@@ -30,7 +30,7 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "vgi-python>=0.8.4",
+    "vgi-python>=0.8.5",
     "splink>=4",
     "duckdb>=1",
     "pandas",
@@ -43,7 +43,7 @@ dependencies = [
 # transports do not need it. The CI integration job installs this extra so the
 # http leg of the SQL E2E suite can serve over `http://`.
 http = [
-    "vgi-python[http]>=0.8.4",
+    "vgi-python[http]>=0.8.5",
 ]
 dev = [
     "pytest>=8",
