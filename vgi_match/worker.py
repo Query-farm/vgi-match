@@ -35,6 +35,7 @@ _CATALOG_DOC_LLM = (
 )
 _CATALOG_DOC_MD = (
     "# Match: Probabilistic Entity Resolution & Record Linkage in SQL\n\n"
+    "![Splink logo](https://user-images.githubusercontent.com/7570107/85285114-3969ac00-b488-11ea-88ff-5fca1b34af1f.png)\n\n"
     "**Match brings fuzzy entity resolution, record linkage, and deduplication "
     "directly into DuckDB SQL** -- point it at a messy relation, name the columns "
     "to compare, and get back clusters of rows that refer to the same real-world "
