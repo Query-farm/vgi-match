@@ -117,6 +117,55 @@ _SCHEMA_DOC_MD = (
     "Comparison columns are passed through to the output too; every non-comparison "
     "column rides along unchanged."
 )
+_SCHEMA_CATEGORIES = (
+    '[{"name": "Entity Resolution", "description": "Cluster a relation\'s rows into '
+    "resolved real-world entities -- deduplication and record linkage -- with "
+    "probabilistic fuzzy matching, returning each row's cluster_id and match_probability.\"}]"
+)
+
+# VGI152: analyst tasks so `vgi-lint simulate` can measure how well an agent uses
+# this worker. Each reference_sql is a deterministic scalar over match_resolve of
+# an inline, clearly-separable VALUES relation (identical last_name+email for the
+# duplicate pairs, distinct singletons), so the default deterministic model links
+# the obvious dups stably across runs. Graded value-only / unordered.
+_AGENT_TEST_TASKS = (
+    "["
+    '{"name": "count-resolved-entities", '
+    '"prompt": "Deduplicate this customer list on first name, last name and email, and '
+    "return how many distinct real-world customers there are. The records are "
+    "(John, Smith, john@x.com), (Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), "
+    '(Jayne, Doe, jane@y.com), (Bob, Ng, bob@z.com).", '
+    '"reference_sql": "SELECT count(DISTINCT cluster_id) AS entities FROM '
+    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),"
+    "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
+    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email')\", "
+    '"unordered": true, "ignore_column_names": true}, '
+    '{"name": "largest-duplicate-group", '
+    '"prompt": "Resolve the same five customer records ((John, Smith, john@x.com), '
+    "(Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), (Jayne, Doe, jane@y.com), "
+    "(Bob, Ng, bob@z.com)) on first name, last name and email, and report how many "
+    'records are in the largest duplicate group.", '
+    '"reference_sql": "SELECT max(n) AS largest_group FROM (SELECT cluster_id, '
+    "count(*) AS n FROM match.main.match_resolve((SELECT * FROM (VALUES "
+    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),"
+    "('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email') GROUP BY cluster_id)\", "
+    '"unordered": true, "ignore_column_names": true}, '
+    '{"name": "count-duplicate-groups", '
+    '"prompt": "For the same five customer records ((John, Smith, john@x.com), '
+    "(Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), (Jayne, Doe, jane@y.com), "
+    "(Bob, Ng, bob@z.com)), resolve entities on first name, last name and email and "
+    'count how many resolved entities contain more than one record (duplicate groups).", '
+    '"reference_sql": "SELECT count(*) AS duplicate_groups FROM (SELECT cluster_id FROM '
+    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),"
+    "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
+    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1)\", "
+    '"unordered": true, "ignore_column_names": true}'
+    "]"
+)
+
 _SCHEMA_EXAMPLE_QUERIES = (
     "SELECT * FROM match.main.match_resolve("
     "(SELECT * FROM (VALUES ('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
@@ -146,6 +195,7 @@ _MATCH_CATALOG = Catalog(
         "vgi.license": "MIT",
         "vgi.support_contact": "https://github.com/Query-farm/vgi-match/issues",
         "vgi.support_policy_url": "https://github.com/Query-farm/vgi-match/blob/main/README.md",
+        "vgi.agent_test_tasks": _AGENT_TEST_TASKS,
     },
     schemas=[
         Schema(
@@ -162,6 +212,7 @@ _MATCH_CATALOG = Catalog(
                 "domain": "data-quality",
                 "category": "entity-resolution",
                 "topic": "record-linkage",
+                "vgi.categories": _SCHEMA_CATEGORIES,
                 "vgi.doc_llm": _SCHEMA_DOC_LLM,
                 "vgi.doc_md": _SCHEMA_DOC_MD,
                 "vgi.example_queries": _SCHEMA_EXAMPLE_QUERIES,

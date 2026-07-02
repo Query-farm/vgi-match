@@ -149,11 +149,12 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         name = "match_resolve"
         description = (
             "Probabilistic entity resolution / record linkage / dedup (Splink, MIT). "
-            "Buffers the whole input relation, runs Splink's Fellegi-Sunter model "
-            "over the comparison columns, and returns the input rows unchanged plus "
-            "an appended cluster_id (same entity = same id) and match_probability. "
-            "columns := 'col1,col2,...' names the fields to match on; threshold := 0.5 "
-            "sets the linking cutoff; train := true opts into unsupervised EM refinement."
+            "Buffers the whole input relation, runs Splink's Fellegi-Sunter model with "
+            "fuzzy (Jaro-Winkler / Levenshtein) comparisons over the chosen columns, "
+            "links record pairs above a match-probability threshold, and returns the "
+            "input rows unchanged plus an appended cluster_id (rows sharing one are the "
+            "same real-world entity) and match_probability. Use it to deduplicate or "
+            "link customer, contact, or product records that exact GROUP BY / JOIN miss."
         )
         categories = ["entity-resolution", "record-linkage", "dedup"]
         examples = [
@@ -189,6 +190,7 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         ]
         tags = {
             "vgi.title": "Resolve & Cluster Entities",
+            "vgi.category": "Entity Resolution",
             "vgi.keywords": (
                 '["entity resolution", "record linkage", "dedup", "deduplication", '
                 '"fuzzy matching", "cluster", "cluster_id", "match probability", "splink", '
@@ -222,9 +224,7 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "## Usage\n\n"
                 "```sql\n"
                 "SELECT * FROM match.match_resolve(\n"
-                "  (SELECT * FROM customers),\n"
-                "  columns := 'first_name,last_name,email',\n"
-                "  threshold := 0.5\n"
+                "  (SELECT * FROM customers), columns := 'first_name,last_name,email'\n"
                 ") ORDER BY cluster_id;\n"
                 "```\n\n"
                 "- `columns` — comma-separated comparison columns to match on (required).\n"
