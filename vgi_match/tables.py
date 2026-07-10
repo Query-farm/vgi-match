@@ -63,14 +63,16 @@ _EXECUTABLE_EXAMPLES = (
     '[{"description": "Deduplicate three records on name + email; the two John/Jon '
     'Smith rows resolve to one cluster, Jane Doe to another.", '
     '"sql": "SELECT first_name, last_name, cluster_id FROM '
-    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','j@x.com'),"
-    "('Jon','Smith','j@x.com'),('Jane','Doe','jane@y.com')) AS "
+    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),"
+    "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS "
     "t(first_name,last_name,email)), columns := 'first_name,last_name,email') "
     'ORDER BY cluster_id, first_name"}, '
-    '{"description": "Count rows per resolved cluster to find duplicate groups.", '
+    '{"description": "Count how many distinct real-world entities remain after '
+    'resolving five customer records (two of which are duplicates).", '
     '"sql": "SELECT count(DISTINCT cluster_id) AS entities FROM '
-    "match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),"
-    "('Bob','Ng')) AS t(first_name,last_name)), columns := 'first_name,last_name')\"}]"
+    "match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee','ann@z.com'),"
+    "('Anne','Lee','ann@z.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email')\"}]"
 )
 
 
@@ -160,30 +162,34 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
         examples = [
             FunctionExample(
                 sql=(
-                    "SELECT * FROM match.match_resolve((SELECT * FROM (VALUES "
-                    "('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
+                    "SELECT first_name, last_name, email, cluster_id, match_probability "
+                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
                     "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
-                    "columns := 'first_name,last_name,email') ORDER BY cluster_id"
+                    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name"
                 ),
-                description="Dedup records on name + email; rows sharing cluster_id are the same entity",
+                description="Dedup on name + email; the John/Jon Smith rows share a cluster_id, Jane Doe is separate",
             ),
             FunctionExample(
                 sql=(
                     "SELECT cluster_id, count(*) AS rows_in_entity "
-                    "FROM match.match_resolve((SELECT * FROM (VALUES "
-                    "('Ann Lee','555-1'),('Anne Lee','555-1'),('Bob Ng','555-2')) "
-                    "AS t(full_name,phone)), columns := 'full_name,phone') "
-                    "GROUP BY cluster_id ORDER BY rows_in_entity DESC"
+                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
+                    "('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
+                    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+                    "columns := 'first_name,last_name,email') "
+                    "GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"
                 ),
-                description="Find contact groups by clustering on name + phone and counting cluster sizes",
+                description="Surface only duplicate groups by clustering and keeping entities with >1 record",
             ),
             FunctionExample(
                 sql=(
-                    "SELECT * FROM match.match_resolve((SELECT * FROM (VALUES "
-                    "('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
+                    "SELECT first_name, last_name, cluster_id, match_probability "
+                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
                     "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
                     "columns := 'first_name,last_name,email', threshold := 0.9) "
-                    "WHERE match_probability >= 0.5 ORDER BY cluster_id"
+                    "WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"
                 ),
                 description="Stricter resolution: raise the link threshold and keep only the more-confident matches",
             ),
@@ -221,12 +227,11 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "[Splink](https://github.com/moj-analytical-services/splink)'s Fellegi-Sunter "
                 "model (fuzzy Jaro-Winkler / Levenshtein comparisons), links pairs above the "
                 "threshold, and groups linked records into clusters.\n\n"
-                "## Usage\n\n"
-                "```sql\n"
-                "SELECT * FROM match.match_resolve(\n"
-                "  (SELECT * FROM customers), columns := 'first_name,last_name,email'\n"
-                ") ORDER BY cluster_id;\n"
-                "```\n\n"
+                "## Calling it\n\n"
+                "Signature: `match_resolve(relation, columns := '...', threshold := 0.5, "
+                "train := false)`. The first positional argument is the relation to resolve, "
+                "passed as a parenthesised subquery over your source rows; the runnable, "
+                "coverage-checked examples are attached to this function's example set.\n\n"
                 "- `columns` — comma-separated comparison columns to match on (required).\n"
                 "- `threshold` — match-probability cutoff in `[0,1]` for linking pairs "
                 "(default `0.5`).\n"
@@ -241,19 +246,30 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "- This is a buffer-all-then-compute operator; block tightly for very large "
                 "inputs."
             ),
-            "vgi.result_columns_md": (
-                "Returns **every input column unchanged** (passthrough), then appends "
-                "these two columns:\n\n"
-                "| column | type | description |\n"
+            "vgi.result_dynamic_columns_md": (
+                "The result schema is **dynamic**: it is the input relation's own columns, "
+                "passed through unchanged, followed by two appended columns. The passthrough "
+                "columns therefore vary with whatever relation you pass as the first "
+                "argument; the two appended columns are always present. If the input already "
+                "has a `cluster_id` or `match_probability` column, it is replaced by the "
+                "produced one.\n\n"
+                "### Appended columns (always present)\n\n"
+                "| Name | Type | Description |\n"
                 "|---|---|---|\n"
-                "| `cluster_id` | VARCHAR | Resolved-entity id; rows sharing a `cluster_id` "
-                "are the same entity (a singleton entity gets its own id). |\n"
-                "| `match_probability` | DOUBLE | Strongest pairwise match probability "
-                "linking the row into its cluster, in `[0, 1]` (`1.0` for a singleton). |\n\n"
-                "The passthrough columns vary by input: they are exactly the schema of the "
-                "`(SELECT ...)` relation passed as the first argument. If the input already "
-                "has a `cluster_id` or `match_probability` column it is replaced by the "
-                "produced one."
+                "| cluster_id | VARCHAR | Resolved-entity id; rows sharing a cluster_id are "
+                "the same entity (a singleton entity gets its own id). |\n"
+                "| match_probability | DOUBLE | Strongest pairwise match probability linking "
+                "the row into its cluster, in [0, 1] (1.0 for a singleton). |\n\n"
+                "### Passthrough columns (vary by input) — shown for the "
+                "(first_name, last_name, email) demo relation\n\n"
+                "| Name | Type | Description |\n"
+                "|---|---|---|\n"
+                "| first_name | VARCHAR | Echo of the like-named input column (a comparison "
+                "column in this demo). |\n"
+                "| last_name | VARCHAR | Echo of the like-named input column (a comparison "
+                "column in this demo). |\n"
+                "| email | VARCHAR | Echo of the like-named input column (a comparison column "
+                "in this demo). |\n"
             ),
             "vgi.executable_examples": _EXECUTABLE_EXAMPLES,
         }

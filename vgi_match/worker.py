@@ -18,7 +18,7 @@ import sys
 from typing import Any
 
 from vgi import Worker
-from vgi.catalog import Catalog, Schema
+from vgi.catalog import Catalog, Schema, View
 
 from vgi_match.tables import TABLE_FUNCTIONS
 
@@ -72,18 +72,13 @@ _CATALOG_DOC_MD = (
     "are the same entity) and `match_probability` (confidence per row). Use it to "
     "deduplicate a customer or contact list, link records that refer to the same "
     "organization, or detect duplicate products before a migration.\n\n"
-    "```sql\n"
-    "SELECT * FROM match.match_resolve(\n"
-    "  (SELECT * FROM customers),\n"
-    "  columns := 'first_name,last_name,email'\n"
-    ") ORDER BY cluster_id;\n"
-    "```\n\n"
-    "Count how many records collapsed into each resolved entity:\n\n"
-    "```sql\n"
-    "SELECT cluster_id, count(*) AS records\n"
-    "FROM match.match_resolve((SELECT * FROM contacts), columns := 'name,phone')\n"
-    "GROUP BY cluster_id ORDER BY records DESC;\n"
-    "```\n\n"
+    "A typical call passes your rows as a parenthesised subquery and names the "
+    "comparison columns -- `match_resolve(relation, columns := "
+    "'first_name,last_name,email')` -- then orders or groups the result by "
+    "`cluster_id` to inspect each resolved entity or to count how many records "
+    "collapsed into it. Fully runnable, coverage-checked queries live in the "
+    "function's own example set (see `match.main.match_resolve`) and in the "
+    "`main` schema examples.\n\n"
     "## Notes\n\n"
     "- The default model is deterministic and robust on relations of any size; "
     "`train := true` opts into Splink's unsupervised EM (weak on tiny inputs).\n"
@@ -108,11 +103,10 @@ _SCHEMA_DOC_MD = (
     "comparison columns and returns the input rows unchanged with an appended "
     "`cluster_id` and `match_probability`.\n\n"
     "## Usage\n\n"
-    "```sql\n"
-    "SELECT cluster_id, count(*)\n"
-    "FROM match.main.match_resolve((SELECT * FROM customers), columns := 'first_name,last_name')\n"
-    "GROUP BY cluster_id;\n"
-    "```\n\n"
+    "Call `match_resolve(relation, columns := 'first_name,last_name')`, passing your "
+    "rows as a parenthesised subquery, then group by `cluster_id` to count records "
+    "per resolved entity. Runnable, coverage-checked queries are attached to the "
+    "`match.main.match_resolve` function and to this schema's example set.\n\n"
     "## Notes\n\n"
     "Comparison columns are passed through to the output too; every non-comparison "
     "column rides along unchanged."
@@ -162,6 +156,13 @@ _AGENT_TEST_TASKS = (
     "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
     "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
     "columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1)\", "
+    '"unordered": true, "ignore_column_names": true}, '
+    '{"name": "browse-sample-customers", '
+    '"prompt": "This worker ships a built-in demo relation of customer records with '
+    "planted duplicates. Using that sample data, how many records have the surname "
+    'Smith?", '
+    '"reference_sql": "SELECT count(*) AS n FROM match.main.sample_customers '
+    "WHERE last_name = 'Smith'\", "
     '"unordered": true, "ignore_column_names": true}'
     "]"
 )
@@ -174,6 +175,102 @@ _SCHEMA_EXAMPLE_QUERIES = (
     "SELECT cluster_id, count(*) AS n FROM match.main.match_resolve("
     "(SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),('Bob','Ng')) AS t(first_name,last_name)), "
     "columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC;"
+)
+
+# VGI146: a browsable, credential-free demo relation so an agent can SEE the
+# shape match_resolve expects before it guesses arguments. VALUES-backed (no
+# network, no backing store) so it scans instantly and clears VGI911. It is the
+# canonical planted-duplicate fixture from tests/synthetic.py: three "Smith"
+# variants and two "Doe" variants are each ONE real person; the two "Jones" rows
+# are DIFFERENT people who merely share a surname. `expected_entity` is the
+# ground-truth label a good resolver should reproduce.
+_SAMPLE_VIEW_SQL = (
+    "SELECT * FROM (VALUES "
+    "(1, 'John',   'Smith', 'jsmith@example.com',   'New York',      'Smith, John'), "
+    "(2, 'Jon',    'Smith', 'jsmith@example.com',   'New York',      'Smith, John'), "
+    "(3, 'Johnny', 'Smith', 'jsmith@example.com',   'New York',      'Smith, John'), "
+    "(4, 'Jane',   'Doe',   'jane.doe@example.com', 'Los Angeles',   'Doe, Jane'), "
+    "(5, 'Janet',  'Doe',   'jane.doe@example.com', 'Los Angeles',   'Doe, Jane'), "
+    "(6, 'Robert', 'Jones', 'rjones@example.com',   'San Francisco', 'Jones, Robert'), "
+    "(7, 'Alice',  'Jones', 'alice.j@example.com',  'Seattle',       'Jones, Alice') "
+    ") AS t(record_id, first_name, last_name, email, city, expected_entity)"
+)
+
+_SAMPLE_VIEW_EXAMPLES = (
+    '[{"description": "Count the sample records that belong to each ground-truth '
+    'entity -- the planted duplicate groups match_resolve should reproduce.", '
+    '"sql": "SELECT expected_entity, count(*) AS records FROM '
+    "match.main.sample_customers GROUP BY expected_entity "
+    'ORDER BY records DESC, expected_entity"}, '
+    '{"description": "Inspect just the messy Smith records (three spelling variants '
+    'of one real person) to see the kind of duplication entity resolution targets.", '
+    '"sql": "SELECT record_id, first_name, last_name, email FROM '
+    "match.main.sample_customers WHERE last_name = 'Smith' ORDER BY record_id\"}]"
+)
+
+_SAMPLE_VIEW = View(
+    name="sample_customers",
+    definition=_SAMPLE_VIEW_SQL,
+    comment=(
+        "A small, browsable demo relation of customer records with planted duplicates "
+        "(and a ground-truth expected_entity label) to try match_resolve against."
+    ),
+    column_comments={
+        "record_id": (
+            "Stable 1-based integer row identifier for the sample record (a dimensionless "
+            "key, not a measured quantity or an ordinal to compute on)."
+        ),
+        "first_name": "Given name; deliberately varied across duplicates (John / Jon / Johnny).",
+        "last_name": "Surname; note the two distinct Jones people who only share a surname.",
+        "email": "Contact email; duplicates of one person share an email, distinct people do not.",
+        "city": "City of the record, carried along as a non-comparison passthrough column.",
+        "expected_entity": (
+            "Ground-truth label: rows with the same value are the same real-world person, "
+            "so a correct resolver should give them one cluster_id."
+        ),
+    },
+    tags={
+        "vgi.title": "Sample Customers (planted-duplicate demo)",
+        # VGI123 classifying tags (bare keys) + VGI411 category coverage.
+        "domain": "data-quality",
+        "category": "entity-resolution",
+        "topic": "sample-data",
+        "vgi.category": "Entity Resolution",
+        "vgi.keywords": (
+            '["sample data", "demo", "fixture", "duplicates", "entity resolution", '
+            '"customers", "record linkage", "ground truth"]'
+        ),
+        "vgi.doc_llm": (
+            "A tiny, static demo relation of seven customer records with deliberately "
+            "planted duplicates, exposed so an agent can browse a realistic messy input "
+            "before calling match_resolve. Three Smith rows (John / Jon / Johnny, same "
+            "email) are one real person; two Doe rows (Jane / Janet, same email) are "
+            "another; the two Jones rows (Robert, Alice) are DIFFERENT people who merely "
+            "share a surname. Columns: record_id, first_name, last_name, email, city, and "
+            "expected_entity (the ground-truth grouping label). Query it directly to see "
+            "the shape match_resolve consumes; feed first_name/last_name/email into "
+            "match_resolve and cluster_id should reproduce expected_entity."
+        ),
+        "vgi.doc_md": (
+            "# sample_customers\n\n"
+            "A small, **browsable demo relation** of seven customer records with planted "
+            "duplicates, so you can try entity resolution without supplying your own data.\n\n"
+            "## The planted story\n\n"
+            "- **Smith, John** -- rows 1-3 (`John` / `Jon` / `Johnny`, same email) are one "
+            "real person with spelling variants.\n"
+            "- **Doe, Jane** -- rows 4-5 (`Jane` / `Janet`, same email) are one real person.\n"
+            "- **Jones** -- rows 6-7 (`Robert`, `Alice`) are *different* people who only "
+            "share a surname -- the over-merge trap.\n\n"
+            "## Columns\n\n"
+            "`record_id`, `first_name`, `last_name`, `email`, `city`, and `expected_entity` "
+            "(the ground-truth grouping label). Compare `expected_entity` against the "
+            "`cluster_id` a resolver assigns to gauge quality.\n\n"
+            "## Notes\n\n"
+            "The relation is static and credential-free (VALUES-backed), so it scans "
+            "instantly and is safe to use in docs, demos, and tests."
+        ),
+        "vgi.example_queries": _SAMPLE_VIEW_EXAMPLES,
+    },
 )
 
 _MATCH_CATALOG = Catalog(
@@ -217,6 +314,7 @@ _MATCH_CATALOG = Catalog(
                 "vgi.doc_md": _SCHEMA_DOC_MD,
                 "vgi.example_queries": _SCHEMA_EXAMPLE_QUERIES,
             },
+            views=[_SAMPLE_VIEW],
             functions=list(_FUNCTIONS),
         ),
     ],
