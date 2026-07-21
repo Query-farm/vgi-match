@@ -45,6 +45,12 @@ dependencies = [
 http = [
     "vgi-python[http]>=0.16.0",
 ]
+# HTTP-serving extra installed by the Docker image (`pip install '.[serve]'`).
+# Alias of `http`: pulls in the optional WSGI server so `vgi-serve --http`
+# (and the container's default transport) can serve over HTTP.
+serve = [
+    "vgi-python[http]>=0.16.0",
+]
 dev = [
     "pytest>=8",
     "ruff",
