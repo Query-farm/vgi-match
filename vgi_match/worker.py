@@ -168,13 +168,17 @@ _AGENT_TEST_TASKS = (
 )
 
 _SCHEMA_EXAMPLE_QUERIES = (
-    "SELECT * FROM match.main.match_resolve("
-    "(SELECT * FROM (VALUES ('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),"
-    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
-    "columns := 'first_name,last_name,email') ORDER BY cluster_id;\n"
-    "SELECT cluster_id, count(*) AS n FROM match.main.match_resolve("
+    '[{"description": "Resolve three records on name + email and inspect the entity '
+    'each row was assigned to, grouped by cluster.", '
+    '"sql": "SELECT first_name, last_name, email, cluster_id FROM '
+    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','j@x.com'),"
+    "('Jon','Smith','j@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name\"}, "
+    '{"description": "Count how many records collapsed into each resolved entity, '
+    'largest duplicate group first.", '
+    '"sql": "SELECT cluster_id, count(*) AS n FROM match.main.match_resolve('
     "(SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),('Bob','Ng')) AS t(first_name,last_name)), "
-    "columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC;"
+    "columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC\"}]"
 )
 
 # VGI146: a browsable, credential-free demo relation so an agent can SEE the

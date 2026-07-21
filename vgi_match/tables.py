@@ -76,6 +76,39 @@ _EXECUTABLE_EXAMPLES = (
 )
 
 
+# VGI515: the described-example carrier the linter reads for per-example
+# descriptions. The native duckdb_functions().examples column (populated from
+# Meta.examples below) drops descriptions, so we mirror the SAME three example
+# SQL strings here as {description, sql} objects; the loader dedupes them against
+# the native carrier by whitespace-insensitive SQL, keeping this described copy.
+_EXAMPLE_QUERIES = (
+    '[{"description": "Dedup on name + email; the John/Jon Smith rows share a cluster_id, '
+    'Jane Doe is separate.", '
+    '"sql": "SELECT first_name, last_name, email, cluster_id, match_probability '
+    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
+    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name\"}, "
+    '{"description": "Surface only duplicate groups by clustering and keeping entities '
+    'with more than one record.", '
+    '"sql": "SELECT cluster_id, count(*) AS rows_in_entity '
+    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
+    "('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
+    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email') "
+    'GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"}, '
+    '{"description": "Stricter resolution: raise the link threshold and keep only the '
+    'more-confident matches.", '
+    '"sql": "SELECT first_name, last_name, cluster_id, match_probability '
+    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
+    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
+    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
+    "columns := 'first_name,last_name,email', threshold := 0.9) "
+    'WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"}]'
+)
+
+
 def _output_schema(input_schema: pa.Schema) -> pa.Schema:
     """Passthrough every input field, then append cluster_id + match_probability.
 
@@ -238,8 +271,8 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "- `train` — opt into Splink's unsupervised EM refinement (default `false`; "
                 "weak on tiny inputs).\n\n"
                 "## Returns\n\n"
-                "Every input column unchanged, plus `cluster_id` (VARCHAR) and "
-                "`match_probability` (DOUBLE).\n\n"
+                "Every input column unchanged, plus `cluster_id` (`VARCHAR`) and "
+                "`match_probability` (`DOUBLE`).\n\n"
                 "## Notes\n\n"
                 "- Singletons get their own `cluster_id` and `match_probability = 1.0`.\n"
                 "- An empty input relation raises an error.\n"
@@ -272,6 +305,7 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
                 "in this demo). |\n"
             ),
             "vgi.executable_examples": _EXECUTABLE_EXAMPLES,
+            "vgi.example_queries": _EXAMPLE_QUERIES,
         }
 
     @classmethod

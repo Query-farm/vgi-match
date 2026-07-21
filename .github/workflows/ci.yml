@@ -156,12 +156,16 @@ jobs:
         run: uv python install 3.13
 
       - name: Install the worker
-        # Build/install the worker so `uv run match_worker.py` resolves against
-        # the synced project venv (mirrors the integration job's build step).
+        # Build/install the worker into the project venv so the installed
+        # `vgi-match` console script attaches against the synced SDK (mirrors the
+        # integration job's build step).
         run: uv sync --extra dev --python 3.13
 
       - name: vgi-lint
         uses: Query-farm/vgi-lint-check@v1
         with:
-          location: "uv run --no-sync match_worker.py"
+          # Attach via the installed console script in the project venv, NOT
+          # `uv run match_worker.py`: a PEP-723 script env caches its own SDK copy
+          # that can drift from the synced venv and lint against a stale schema.
+          location: ".venv/bin/vgi-match"
           fail-on: info
