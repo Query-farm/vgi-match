@@ -310,8 +310,10 @@ def resolve(
         settings = _default_settings(columns, prior=prior)
         do_train = train
 
+    # Splink 5: input tables are registered with the backend first; the Linker
+    # takes the resulting SplinkDataFrame (no db_api= keyword any more).
     db_api = DuckDBAPI()
-    linker = Linker(work, settings, db_api=db_api)
+    linker = Linker(db_api.register(work), settings)
 
     if do_train:
         # Best-effort EM refinement; default-calibrated model kept if it fails.

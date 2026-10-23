@@ -30,8 +30,8 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "vgi-python>=0.16.0",
-    "splink>=4",
+    "vgi-python>=0.46.1",
+    "splink>=5",
     "duckdb>=1",
     "pandas",
     "pyarrow",
@@ -43,13 +43,13 @@ dependencies = [
 # transports do not need it. The CI integration job installs this extra so the
 # http leg of the SQL E2E suite can serve over `http://`.
 http = [
-    "vgi-python[http]>=0.16.0",
+    "vgi-python[http]>=0.46.1",
 ]
 # HTTP-serving extra installed by the Docker image (`pip install '.[serve]'`).
 # Alias of `http`: pulls in the optional WSGI server so `vgi-serve --http`
 # (and the container's default transport) can serve over HTTP.
 serve = [
-    "vgi-python[http]>=0.16.0",
+    "vgi-python[http]>=0.46.1",
 ]
 dev = [
     "pytest>=8",
@@ -57,6 +57,7 @@ dev = [
     "mypy",
     "pydoclint",
     "pandas-stubs",
+    "pyarrow-stubs",
 ]
 
 [project.scripts]
@@ -125,15 +126,6 @@ warn_unused_ignores = true
 # package as untyped (Any) so the worker can call it without per-call ignores.
 [[tool.mypy.overrides]]
 module = ["splink.*"]
-ignore_missing_imports = true
-follow_imports = "skip"
-follow_imports_for_stubs = true
-
-# pyarrow ships an incomplete py.typed marker; the IPC stream helpers
-# (pa.ipc.new_stream / open_stream) and to_pandas() are unannotated, so under
-# --strict they trip no-untyped-call / no-any-return. Treat pyarrow as untyped.
-[[tool.mypy.overrides]]
-module = ["pyarrow.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 follow_imports_for_stubs = true

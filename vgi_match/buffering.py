@@ -15,7 +15,7 @@ function only writes its ``finalize`` logic.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import pandas as pd
 import pyarrow as pa
@@ -37,18 +37,18 @@ def serialize_batch(batch: pa.RecordBatch) -> bytes:
     sink = pa.BufferOutputStream()
     with pa.ipc.new_stream(sink, batch.schema) as writer:
         writer.write_batch(batch)
-    return cast(bytes, sink.getvalue().to_pybytes())
+    return sink.getvalue().to_pybytes()
 
 
 def deserialize_batches(value: bytes) -> list[pa.RecordBatch]:
     """Inverse of :func:`serialize_batch` for one stored blob."""
     reader = pa.ipc.open_stream(pa.BufferReader(value))
-    return cast("list[pa.RecordBatch]", reader.read_all().to_batches())
+    return reader.read_all().to_batches()
 
 
 def input_schema_of(params: Any) -> pa.Schema:
     """Input schema from a process/finalize params object."""
-    schema = params.init_call.bind_call.input_schema
+    schema: pa.Schema | None = params.init_call.bind_call.input_schema
     assert schema is not None
     return schema
 
@@ -107,5 +107,5 @@ class SinkBuffer[TArgs, TState](TableBufferingFunction[TArgs, TState]):
         for _sid, value in params.storage.state_log_scan(_DATA_KEY, b""):
             batches.extend(deserialize_batches(value))
         if not batches:
-            return cast("pd.DataFrame", pa.Table.from_batches([], schema=input_schema).to_pandas())
-        return cast("pd.DataFrame", pa.Table.from_batches(batches, schema=input_schema).to_pandas())
+            return pa.Table.from_batches([], schema=input_schema).to_pandas()
+        return pa.Table.from_batches(batches, schema=input_schema).to_pandas()

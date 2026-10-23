@@ -32,6 +32,7 @@ def _run(client: Client, table: pa.Table, **named: object) -> pa.Table:
     batches = list(
         client.table_buffering_function(
             function_name="match_resolve",
+            schema_path=["main"],
             input=iter(table.to_batches()),
             arguments=Arguments(named={k: pa.scalar(v) for k, v in named.items()}),
         )

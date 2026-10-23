@@ -1,0 +1,20 @@
+# Private graders for `vgi-lint simulate` (VGI416). The worker publishes only
+# task names and prompts in vgi.agent_test_tasks; these canonical solutions and
+# grading options stay in the repo and are merged by task name.
+tasks:
+  - name: count-resolved-entities
+    reference_sql: "SELECT count(DISTINCT cluster_id) AS entities FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email')"
+    ignore_column_names: true
+    unordered: true
+  - name: largest-duplicate-group
+    reference_sql: "SELECT max(n) AS largest_group FROM (SELECT cluster_id, count(*) AS n FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') GROUP BY cluster_id)"
+    ignore_column_names: true
+    unordered: true
+  - name: count-duplicate-groups
+    reference_sql: "SELECT count(*) AS duplicate_groups FROM (SELECT cluster_id FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1)"
+    ignore_column_names: true
+    unordered: true
+  - name: browse-sample-customers
+    reference_sql: "SELECT count(*) AS n FROM match.main.sample_customers WHERE last_name = 'Smith'"
+    ignore_column_names: true
+    unordered: true

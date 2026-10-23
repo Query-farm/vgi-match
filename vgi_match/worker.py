@@ -118,7 +118,9 @@ _SCHEMA_CATEGORIES = (
 )
 
 # VGI152: analyst tasks so `vgi-lint simulate` can measure how well an agent uses
-# this worker. Each reference_sql is a deterministic scalar over match_resolve of
+# this worker. Only the public {name, prompt} pairs are published here (VGI416);
+# the graders live in vgi-agent-tests.yaml at the repo root. Each reference_sql
+# there is a deterministic scalar over match_resolve of
 # an inline, clearly-separable VALUES relation (identical last_name+email for the
 # duplicate pairs, distinct singletons), so the default deterministic model links
 # the obvious dups stably across runs. Graded value-only / unordered.
@@ -128,42 +130,21 @@ _AGENT_TEST_TASKS = (
     '"prompt": "Deduplicate this customer list on first name, last name and email, and '
     "return how many distinct real-world customers there are. The records are "
     "(John, Smith, john@x.com), (Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), "
-    '(Jayne, Doe, jane@y.com), (Bob, Ng, bob@z.com).", '
-    '"reference_sql": "SELECT count(DISTINCT cluster_id) AS entities FROM '
-    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),"
-    "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
-    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
-    "columns := 'first_name,last_name,email')\", "
-    '"unordered": true, "ignore_column_names": true}, '
+    '(Jayne, Doe, jane@y.com), (Bob, Ng, bob@z.com)."}, '
     '{"name": "largest-duplicate-group", '
     '"prompt": "Resolve the same five customer records ((John, Smith, john@x.com), '
     "(Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), (Jayne, Doe, jane@y.com), "
     "(Bob, Ng, bob@z.com)) on first name, last name and email, and report how many "
-    'records are in the largest duplicate group.", '
-    '"reference_sql": "SELECT max(n) AS largest_group FROM (SELECT cluster_id, '
-    "count(*) AS n FROM match.main.match_resolve((SELECT * FROM (VALUES "
-    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),"
-    "('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
-    "columns := 'first_name,last_name,email') GROUP BY cluster_id)\", "
-    '"unordered": true, "ignore_column_names": true}, '
+    'records are in the largest duplicate group."}, '
     '{"name": "count-duplicate-groups", '
     '"prompt": "For the same five customer records ((John, Smith, john@x.com), '
     "(Jon, Smith, john@x.com), (Jane, Doe, jane@y.com), (Jayne, Doe, jane@y.com), "
     "(Bob, Ng, bob@z.com)), resolve entities on first name, last name and email and "
-    'count how many resolved entities contain more than one record (duplicate groups).", '
-    '"reference_sql": "SELECT count(*) AS duplicate_groups FROM (SELECT cluster_id FROM '
-    "match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),"
-    "('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
-    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
-    "columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1)\", "
-    '"unordered": true, "ignore_column_names": true}, '
+    'count how many resolved entities contain more than one record (duplicate groups)."}, '
     '{"name": "browse-sample-customers", '
     '"prompt": "This worker ships a built-in demo relation of customer records with '
     "planted duplicates. Using that sample data, how many records have the surname "
-    'Smith?", '
-    '"reference_sql": "SELECT count(*) AS n FROM match.main.sample_customers '
-    "WHERE last_name = 'Smith'\", "
-    '"unordered": true, "ignore_column_names": true}'
+    'Smith?"}'
     "]"
 )
 
@@ -300,7 +281,7 @@ _MATCH_CATALOG = Catalog(
     },
     schemas=[
         Schema(
-            name="main",
+            path=["main"],
             comment="Probabilistic entity resolution / record linkage / dedup (Splink) for SQL",
             tags={
                 "vgi.title": "Match — main",
