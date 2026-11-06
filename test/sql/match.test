@@ -9,7 +9,7 @@ statement ok
 LOAD vgi;
 
 statement ok
-ATTACH 'match' AS match (TYPE vgi, LOCATION '${VGI_MATCH_WORKER}');
+ATTACH 'match' AS match (TYPE vgi, LOCATION '{VGI_MATCH_WORKER}');
 
 # A small customers relation with KNOWN duplicates:
 #   rows 1,2,3 = John / Jon / Johnny Smith   (same person, shared email)

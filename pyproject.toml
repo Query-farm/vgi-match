@@ -30,7 +30,7 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "vgi-python>=0.46.1",
+    "vgi-python>=0.49.0",
     "splink>=5",
     "duckdb>=1",
     "pandas",
@@ -43,13 +43,13 @@ dependencies = [
 # transports do not need it. The CI integration job installs this extra so the
 # http leg of the SQL E2E suite can serve over `http://`.
 http = [
-    "vgi-python[http]>=0.46.1",
+    "vgi-python[http]>=0.49.0",
 ]
 # HTTP-serving extra installed by the Docker image (`pip install '.[serve]'`).
 # Alias of `http`: pulls in the optional WSGI server so `vgi-serve --http`
 # (and the container's default transport) can serve over HTTP.
 serve = [
-    "vgi-python[http]>=0.46.1",
+    "vgi-python[http]>=0.49.0",
 ]
 dev = [
     "pytest>=8",

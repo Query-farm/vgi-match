@@ -15,7 +15,9 @@ extension from the Haybarn community channel:
    is the installed console script (`vgi_match.worker:main`) the extension can
    spawn over stdio.
 2. **Download the runner** — the matching `haybarn_unittest-*` asset per
-   platform from the latest Haybarn release.
+   platform from the newest haybarn 2.0 (`haybarn-v2.0.*`) release. The worker
+   speaks VGI protocol vgi.v3 / 3.1, which only the haybarn 2.0 community `vgi`
+   extension accepts.
 3. **Preprocess** — the standalone runner links none of the extensions the
    tests gate on, so [`preprocess-require.awk`](preprocess-require.awk) rewrites
    each `require <ext>` into an explicit signed `INSTALL <ext> FROM
@@ -26,7 +28,8 @@ extension from the Haybarn community channel:
 4. **Run** — [`run-integration.sh`](run-integration.sh) stages the preprocessed
    tree, points `VGI_MATCH_WORKER` at `.venv/bin/vgi-match`, warms the
    extension cache once, then runs the suite in a single `haybarn-unittest`
-   invocation. Any failed assertion exits non-zero and fails the job.
+   invocation (with `--keep-home`, since haybarn-unittest 2.0 isolates `$HOME`).
+   Any failed assertion exits non-zero and fails the job.
 
 ## Three transports (subprocess / http / unix)
 
