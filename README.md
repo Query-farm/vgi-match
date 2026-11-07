@@ -17,7 +17,7 @@ same real-world entity.
 
 ```sql
 INSTALL vgi FROM community; LOAD vgi;
-ATTACH 'match' (TYPE vgi, LOCATION 'uv run match_worker.py');
+ATTACH 'match' (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.2.0 vgi-match');
 
 -- Dedup customers on name + email. Rows sharing cluster_id are the same person.
 SELECT * FROM match.match_resolve(
@@ -29,6 +29,49 @@ SELECT * FROM match.match_resolve(
 SELECT count(DISTINCT cluster_id)
 FROM match.match_resolve((SELECT * FROM customers),
                          columns := 'first_name,last_name,email');
+```
+
+## Quick start
+
+The worker isn't on PyPI; [uv](https://docs.astral.sh/uv/) runs it straight from a tagged release on GitHub. `uvx` builds an isolated environment on the first ATTACH and reuses it afterwards:
+
+```sql
+INSTALL vgi FROM community;
+LOAD vgi;
+
+ATTACH 'match' AS match (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.2.0 vgi-match');
+
+-- Resolve three records on name + email and inspect the entity each row was assigned to,
+-- grouped by cluster.
+SELECT first_name, last_name, email, cluster_id FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','j@x.com'),('Jon','Smith','j@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name;
+
+-- Count how many records collapsed into each resolved entity, largest duplicate group
+-- first.
+SELECT cluster_id, count(*) AS n FROM match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),('Bob','Ng')) AS t(first_name,last_name)), columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC;
+```
+
+Change `@v0.2.0` to move to a newer release.
+
+### Other ways to run it
+
+- **Docker** (the image bundles the worker and its dependencies):
+
+  ```sql
+  ATTACH 'match' AS match (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-match:0.2.0');
+  ```
+
+- **From a local checkout** (`git clone https://github.com/Query-farm/vgi-match`), point `LOCATION` at `uv run --project /path/to/vgi-match vgi-match`.
+
+### Build from source
+
+To run the worker from a source checkout or install its console scripts yourself:
+
+```bash
+# From a source checkout (stdio worker, exactly how DuckDB drives it after ATTACH):
+uv run match_worker.py
+
+# Or install the console script:
+uv tool install git+https://github.com/Query-farm/vgi-match@v0.2.0    # provides `vgi-match` (stdio) and `vgi-match-http`
 ```
 
 ## Data flow: one relation in, the rows back plus a cluster id
@@ -92,16 +135,6 @@ those parameters fall back to defaults and clustering still works.)
 | function | returns | does |
 |----------|---------|------|
 | `match_resolve(rel, columns, [threshold])` | every input column + `cluster_id` + `match_probability`, one row per input row | dedup / resolve entities in `rel` |
-
-## Installation & running
-
-```bash
-# From a source checkout (stdio worker, exactly how DuckDB drives it after ATTACH):
-uv run match_worker.py
-
-# Or install the console script:
-uv tool install vgi-match    # provides `vgi-match` (stdio) and `vgi-match-http`
-```
 
 ## Memory characteristic (read this before you point it at 50M rows)
 
