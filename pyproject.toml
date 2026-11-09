@@ -1,6 +1,6 @@
 [project]
 name = "vgi-match"
-version = "0.2.0"
+version = "0.3.0"
 description = "Probabilistic entity resolution / record linkage / dedup (Splink) for DuckDB via VGI"
 readme = "README.md"
 keywords = [
