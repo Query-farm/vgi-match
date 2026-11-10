@@ -215,7 +215,7 @@ _SAMPLE_VIEW = View(
         ),
     },
     tags={
-        "vgi.title": "Sample Customers (planted-duplicate demo)",
+        "vgi.title": "Demo Customer Records",
         # VGI123 classifying tags (bare keys) + VGI411 category coverage.
         "domain": "data-quality",
         "category": "entity-resolution",
@@ -264,7 +264,10 @@ _MATCH_CATALOG = Catalog(
     comment="Probabilistic entity resolution / record linkage / dedup (Splink) for SQL.",
     source_url="https://github.com/Query-farm/vgi-match",
     tags={
-        "vgi.title": "Entity Resolution & Record Linkage",
+        "vgi.title": "Entity Resolution",
+        "vgi.subtitle": (
+            "Find duplicate records and link the same real-world entity across tables with probabilistic matching."
+        ),
         "vgi.keywords": (
             '["entity resolution", "record linkage", "deduplication", "dedup", '
             '"fuzzy matching", "splink", "fellegi-sunter", "clustering", '
@@ -284,7 +287,7 @@ _MATCH_CATALOG = Catalog(
             path=["main"],
             comment="Probabilistic entity resolution / record linkage / dedup (Splink) for SQL",
             tags={
-                "vgi.title": "Match — main",
+                "vgi.title": "Entity Matching",
                 "vgi.keywords": (
                     '["entity resolution", "record linkage", "dedup", "deduplication", '
                     '"match_resolve", "fuzzy matching", "clustering", "cluster_id", '
