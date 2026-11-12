@@ -1,6 +1,6 @@
 [project]
 name = "vgi-match"
-version = "0.3.0"
+version = "0.4.0"
 description = "Probabilistic entity resolution / record linkage / dedup (Splink) for DuckDB via VGI"
 readme = "README.md"
 keywords = [
@@ -30,7 +30,7 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "vgi-python>=0.50.0",
+    "vgi-python>=0.51.0",
     "splink>=5",
     "duckdb>=1",
     "pandas",
@@ -43,13 +43,13 @@ dependencies = [
 # transports do not need it. The CI integration job installs this extra so the
 # http leg of the SQL E2E suite can serve over `http://`.
 http = [
-    "vgi-python[http]>=0.50.0",
+    "vgi-python[http]>=0.51.0",
 ]
 # HTTP-serving extra installed by the Docker image (`pip install '.[serve]'`).
 # Alias of `http`: pulls in the optional WSGI server so `vgi-serve --http`
 # (and the container's default transport) can serve over HTTP.
 serve = [
-    "vgi-python[http]>=0.50.0",
+    "vgi-python[http]>=0.51.0",
 ]
 dev = [
     "pytest>=8",
