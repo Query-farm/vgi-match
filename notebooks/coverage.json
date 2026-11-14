@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "catalogs": {
+    "released": {
+      "path": "coverage/catalog-released.json",
+      "sha256": "bd6735bf1f1930c4c252a879d0e244cff2f7c907ae17a5738ed88d5f2fb81791",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_sympy",
+        "reviewed_at": "2026-11-14T19:48:49.466123+00:00",
+        "catalog_sha256": "bd6735bf1f1930c4c252a879d0e244cff2f7c907ae17a5738ed88d5f2fb81791",
+        "notes": "Complete native function/table/view exports through actual Haybarn attachments, reconciled with Python Catalog/Schema/View registration and TABLE_FUNCTIONS. Two public names: match_resolve and sample_customers view; no exclusions. All shipped sample rows agree between actual runtimes. Current main adds composed metadata examples without changing these analytical interfaces; current catalog uses existing installed source environment without rebuild."
+      }
+    },
+    "current": {
+      "path": "coverage/catalog-current.json",
+      "sha256": "d854e2dd514aca3d10812fccf8a9dc0f1902a6ceaf29a02b243eb5d010fb66b0",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_sympy",
+        "reviewed_at": "2026-11-14T19:48:49.466123+00:00",
+        "catalog_sha256": "d854e2dd514aca3d10812fccf8a9dc0f1902a6ceaf29a02b243eb5d010fb66b0",
+        "notes": "Complete native function/table/view exports through actual Haybarn attachments, reconciled with Python Catalog/Schema/View registration and TABLE_FUNCTIONS. Two public names: match_resolve and sample_customers view; no exclusions. All shipped sample rows agree between actual runtimes. Current main adds composed metadata examples without changing these analytical interfaces; current catalog uses existing installed source environment without rebuild."
+      }
+    }
+  },
+  "notebooks": [
+    {
+      "path": "01_audit_duplicate_groups.ipynb",
+      "sha256": "c52f58c1fffb539d70e083e13de81babb95e3c2e485b6dd4542f2cbc80c9a820",
+      "execution": {
+        "path": "coverage/run-01.json",
+        "sha256": "fffdd5baee650413b0e371d749471c4fbb982d57e24dfeb5760509b291f534a6"
+      }
+    }
+  ],
+  "examples": [
+    {
+      "object": {
+        "schema": "main",
+        "name": "sample_customers"
+      },
+      "notebook": "01_audit_duplicate_groups.ipynb",
+      "sql": [
+        {
+          "cell": "sample-query",
+          "reference": "match.main.sample_customers"
+        }
+      ],
+      "narrative_cells": [
+        "sample-question"
+      ],
+      "result_cells": [
+        "sample-query"
+      ],
+      "interpretation_cells": [
+        "sample-finding"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_sympy",
+        "reviewed_at": "2026-11-14T19:48:49.466123+00:00",
+        "notebook_sha256": "c52f58c1fffb539d70e083e13de81babb95e3c2e485b6dd4542f2cbc80c9a820",
+        "catalog_sha256": [
+          "bd6735bf1f1930c4c252a879d0e244cff2f7c907ae17a5738ed88d5f2fb81791",
+          "d854e2dd514aca3d10812fccf8a9dc0f1902a6ceaf29a02b243eb5d010fb66b0"
+        ],
+        "purpose": "Use the worker-shipped synthetic population to establish expected groups and withhold evaluation labels from matching.",
+        "finding": "The sample has seven records in four authored groups, with three Smith variants, two Doe variants and two distinct Jones records. The sample is materialized once; customers omits expected_entity, and fixture_truth carries that label only for evaluation. These are worker-project synthetic labels, not an independent benchmark."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "match_resolve"
+      },
+      "notebook": "01_audit_duplicate_groups.ipynb",
+      "sql": [
+        {
+          "cell": "bb3c0bb2",
+          "reference": "match.main.match_resolve"
+        }
+      ],
+      "narrative_cells": [
+        "a5c2186b"
+      ],
+      "result_cells": [
+        "bb3c0bb2"
+      ],
+      "interpretation_cells": [
+        "9269be97"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_sympy",
+        "reviewed_at": "2026-11-14T19:48:49.466123+00:00",
+        "notebook_sha256": "c52f58c1fffb539d70e083e13de81babb95e3c2e485b6dd4542f2cbc80c9a820",
+        "catalog_sha256": [
+          "bd6735bf1f1930c4c252a879d0e244cff2f7c907ae17a5738ed88d5f2fb81791",
+          "d854e2dd514aca3d10812fccf8a9dc0f1902a6ceaf29a02b243eb5d010fb66b0"
+        ],
+        "purpose": "Evaluate how a pair-link threshold changes recovered and missed labeled duplicates rather than treating row scores as certainty.",
+        "finding": "The real released resolver materializes seven rows with cluster IDs and scores using three comparison columns and train=false. Every unordered pair is evaluated exactly once; precision is NULL if no pair is grouped. Singleton score 1.0 is kept with explicit context, not interpreted as a probability of uniqueness. The focused 0.9999 experiment changes clustering while retaining sample and labels."
+      }
+    }
+  ]
+}

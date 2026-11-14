@@ -1,0 +1,78 @@
+{
+  "query": "SELECT * FROM duckdb_functions() WHERE database_name='match' ORDER BY schema_name,function_name",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "function_name",
+    "alias_of",
+    "function_type",
+    "description",
+    "comment",
+    "tags",
+    "return_type",
+    "parameters",
+    "parameter_types",
+    "varargs",
+    "macro_definition",
+    "has_side_effects",
+    "internal",
+    "extension_name",
+    "function_oid",
+    "examples",
+    "stability",
+    "categories"
+  ],
+  "rows": [
+    [
+      "match",
+      "22592",
+      "main",
+      "match_resolve",
+      null,
+      "table",
+      "Probabilistic entity resolution / record linkage / dedup (Splink, MIT). Buffers the whole input relation, runs Splink's Fellegi-Sunter model with fuzzy (Jaro-Winkler / Levenshtein) comparisons over the chosen columns, links record pairs above a match-probability threshold, and returns the input rows unchanged plus an appended cluster_id (rows sharing one are the same real-world entity) and match_probability. Use it to deduplicate or link customer, contact, or product records that exact GROUP BY / JOIN miss.",
+      null,
+      {
+        "vgi.category": "Entity Resolution",
+        "vgi.doc_llm": "Probabilistic entity resolution over a whole SQL relation. Pass a relation of records as the first positional argument (a `(SELECT ...)` subquery) and name the comparison columns with `columns := 'col1,col2,...'`. The function buffers every input row, runs Splink's Fellegi-Sunter model with fuzzy comparisons (Jaro-Winkler on name-like columns, Levenshtein elsewhere), links candidate pairs above `threshold` (default 0.5), and assigns each row a `cluster_id` (rows sharing one are the same real-world entity) plus a `match_probability`. Every input column is returned unchanged. Use it to deduplicate customer/contact/product lists or to link records that refer to the same entity. Inputs: the relation, `columns`, optional `threshold` and `train` (opt-in unsupervised EM, weak on tiny inputs). Edge cases: an empty relation raises an error; singletons get their own cluster_id and a match_probability of 1.0; an input column already named `cluster_id` or `match_probability` is replaced by the produced one.",
+        "vgi.doc_md": "# match_resolve\n\nCluster the rows of a relation into **resolved entities** (deduplication / record linkage) using probabilistic matching.\n\n## What it does\n\nBuffers the whole input relation, scores every candidate record pair with [Splink](https://github.com/moj-analytical-services/splink)'s Fellegi-Sunter model (fuzzy Jaro-Winkler / Levenshtein comparisons), links pairs above the threshold, and groups linked records into clusters.\n\n## Calling it\n\nSignature: `match_resolve(relation, columns := '...', threshold := 0.5, train := false)`. The first positional argument is the relation to resolve, passed as a parenthesised subquery over your source rows; the runnable, coverage-checked examples are attached to this function's example set.\n\n- `columns` \u2014 comma-separated comparison columns to match on (required).\n- `threshold` \u2014 match-probability cutoff in `[0,1]` for linking pairs (default `0.5`).\n- `train` \u2014 opt into Splink's unsupervised EM refinement (default `false`; weak on tiny inputs).\n\n## Returns\n\nEvery input column unchanged, plus `cluster_id` (`VARCHAR`) and `match_probability` (`DOUBLE`).\n\n## Notes\n\n- Singletons get their own `cluster_id` and `match_probability = 1.0`.\n- An empty input relation raises an error.\n- This is a buffer-all-then-compute operator; block tightly for very large inputs.",
+        "vgi.example_queries": "[{\"description\": \"Dedup on name + email; the John/Jon Smith rows share a cluster_id, Jane Doe is separate.\", \"sql\": \"SELECT first_name, last_name, email, cluster_id, match_probability FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name\"}, {\"description\": \"Surface only duplicate groups by clustering and keeping entities with more than one record.\", \"sql\": \"SELECT cluster_id, count(*) AS rows_in_entity FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC\"}, {\"description\": \"Stricter resolution: raise the link threshold and keep only the more-confident matches.\", \"sql\": \"SELECT first_name, last_name, cluster_id, match_probability FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email', threshold := 0.9) WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name\"}]",
+        "vgi.executable_examples": "[{\"description\": \"Deduplicate three records on name + email; the two John/Jon Smith rows resolve to one cluster, Jane Doe to another.\", \"sql\": \"SELECT first_name, last_name, cluster_id FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name\"}, {\"description\": \"Count how many distinct real-world entities remain after resolving five customer records (two of which are duplicates).\", \"sql\": \"SELECT count(DISTINCT cluster_id) AS entities FROM match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee','ann@z.com'),('Anne','Lee','ann@z.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email')\"}]",
+        "vgi.keywords": "[\"entity resolution\", \"record linkage\", \"dedup\", \"deduplication\", \"fuzzy matching\", \"cluster\", \"cluster_id\", \"match probability\", \"splink\", \"jaro-winkler\", \"levenshtein\", \"customer matching\", \"duplicate detection\"]",
+        "vgi.result_dynamic_columns_md": "The result schema is **dynamic**: it is the input relation's own columns, passed through unchanged, followed by two appended columns. The passthrough columns therefore vary with whatever relation you pass as the first argument; the two appended columns are always present. If the input already has a `cluster_id` or `match_probability` column, it is replaced by the produced one.\n\n### Appended columns (always present)\n\n| Name | Type | Description |\n|---|---|---|\n| cluster_id | VARCHAR | Resolved-entity id; rows sharing a cluster_id are the same entity (a singleton entity gets its own id). |\n| match_probability | DOUBLE | Strongest pairwise match probability linking the row into its cluster, in [0, 1] (1.0 for a singleton). |\n\n### Passthrough columns (vary by input) \u2014 shown for the (first_name, last_name, email) demo relation\n\n| Name | Type | Description |\n|---|---|---|\n| first_name | VARCHAR | Echo of the like-named input column (a comparison column in this demo). |\n| last_name | VARCHAR | Echo of the like-named input column (a comparison column in this demo). |\n| email | VARCHAR | Echo of the like-named input column (a comparison column in this demo). |\n",
+        "vgi.title": "Resolve & Cluster Entities"
+      },
+      null,
+      [
+        "data",
+        "threshold",
+        "train",
+        "columns"
+      ],
+      [
+        "TABLE",
+        "DOUBLE",
+        "BOOLEAN",
+        "VARCHAR"
+      ],
+      null,
+      null,
+      null,
+      true,
+      null,
+      22596,
+      [
+        "SELECT first_name, last_name, email, cluster_id, match_probability FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name",
+        "SELECT cluster_id, count(*) AS rows_in_entity FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email') GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC",
+        "SELECT first_name, last_name, cluster_id, match_probability FROM match.main.match_resolve((SELECT * FROM (VALUES ('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), columns := 'first_name,last_name,email', threshold := 0.9) WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"
+      ],
+      null,
+      [
+        "entity-resolution",
+        "record-linkage",
+        "dedup"
+      ]
+    ]
+  ]
+}

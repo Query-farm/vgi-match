@@ -1,0 +1,45 @@
+{
+  "query": "SELECT * FROM duckdb_views() WHERE database_name='match' ORDER BY schema_name,view_name",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "schema_oid",
+    "view_name",
+    "view_oid",
+    "comment",
+    "tags",
+    "internal",
+    "temporary",
+    "column_count",
+    "sql",
+    "is_bound"
+  ],
+  "rows": [
+    [
+      "match",
+      22592,
+      "main",
+      22593,
+      "sample_customers",
+      22727,
+      "A small, browsable demo relation of customer records with planted duplicates (and a ground-truth expected_entity label) to try match_resolve against.",
+      {
+        "category": "entity-resolution",
+        "domain": "data-quality",
+        "topic": "sample-data",
+        "vgi.category": "Entity Resolution",
+        "vgi.doc_llm": "A tiny, static demo relation of seven customer records with deliberately planted duplicates, exposed so an agent can browse a realistic messy input before calling match_resolve. Three Smith rows (John / Jon / Johnny, same email) are one real person; two Doe rows (Jane / Janet, same email) are another; the two Jones rows (Robert, Alice) are DIFFERENT people who merely share a surname. Columns: record_id, first_name, last_name, email, city, and expected_entity (the ground-truth grouping label). Query it directly to see the shape match_resolve consumes; feed first_name/last_name/email into match_resolve and cluster_id should reproduce expected_entity.",
+        "vgi.doc_md": "# sample_customers\n\nA small, **browsable demo relation** of seven customer records with planted duplicates, so you can try entity resolution without supplying your own data.\n\n## The planted story\n\n- **Smith, John** -- rows 1-3 (`John` / `Jon` / `Johnny`, same email) are one real person with spelling variants.\n- **Doe, Jane** -- rows 4-5 (`Jane` / `Janet`, same email) are one real person.\n- **Jones** -- rows 6-7 (`Robert`, `Alice`) are *different* people who only share a surname -- the over-merge trap.\n\n## Columns\n\n`record_id`, `first_name`, `last_name`, `email`, `city`, and `expected_entity` (the ground-truth grouping label). Compare `expected_entity` against the `cluster_id` a resolver assigns to gauge quality.\n\n## Notes\n\nThe relation is static and credential-free (VALUES-backed), so it scans instantly and is safe to use in docs, demos, and tests.",
+        "vgi.example_queries": "[{\"description\": \"Count the sample records that belong to each ground-truth entity -- the planted duplicate groups match_resolve should reproduce.\", \"sql\": \"SELECT expected_entity, count(*) AS records FROM match.main.sample_customers GROUP BY expected_entity ORDER BY records DESC, expected_entity\"}, {\"description\": \"Inspect just the messy Smith records (three spelling variants of one real person) to see the kind of duplication entity resolution targets.\", \"sql\": \"SELECT record_id, first_name, last_name, email FROM match.main.sample_customers WHERE last_name = 'Smith' ORDER BY record_id\"}]",
+        "vgi.keywords": "[\"sample data\", \"demo\", \"fixture\", \"duplicates\", \"entity resolution\", \"customers\", \"record linkage\", \"ground truth\"]",
+        "vgi.title": "Demo Customer Records"
+      },
+      false,
+      false,
+      null,
+      "CREATE VIEW sample_customers AS SELECT * FROM (SELECT * FROM (VALUES (1, 'John', 'Smith', 'jsmith@example.com', 'New York', 'Smith, John'), (2, 'Jon', 'Smith', 'jsmith@example.com', 'New York', 'Smith, John'), (3, 'Johnny', 'Smith', 'jsmith@example.com', 'New York', 'Smith, John'), (4, 'Jane', 'Doe', 'jane.doe@example.com', 'Los Angeles', 'Doe, Jane'), (5, 'Janet', 'Doe', 'jane.doe@example.com', 'Los Angeles', 'Doe, Jane'), (6, 'Robert', 'Jones', 'rjones@example.com', 'San Francisco', 'Jones, Robert'), (7, 'Alice', 'Jones', 'alice.j@example.com', 'Seattle', 'Jones, Alice')) AS valueslist) AS t(record_id, first_name, last_name, email, city, expected_entity);",
+      false
+    ]
+  ]
+}

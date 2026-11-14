@@ -1,0 +1,141 @@
+{
+  "description": "All shipped synthetic customer rows match across actual released and current runtimes.",
+  "results": {
+    "released": {
+      "columns": [
+        "record_id",
+        "first_name",
+        "last_name",
+        "email",
+        "city",
+        "expected_entity"
+      ],
+      "rows": [
+        [
+          1,
+          "John",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          2,
+          "Jon",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          3,
+          "Johnny",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          4,
+          "Jane",
+          "Doe",
+          "jane.doe@example.com",
+          "Los Angeles",
+          "Doe, Jane"
+        ],
+        [
+          5,
+          "Janet",
+          "Doe",
+          "jane.doe@example.com",
+          "Los Angeles",
+          "Doe, Jane"
+        ],
+        [
+          6,
+          "Robert",
+          "Jones",
+          "rjones@example.com",
+          "San Francisco",
+          "Jones, Robert"
+        ],
+        [
+          7,
+          "Alice",
+          "Jones",
+          "alice.j@example.com",
+          "Seattle",
+          "Jones, Alice"
+        ]
+      ]
+    },
+    "current": {
+      "columns": [
+        "record_id",
+        "first_name",
+        "last_name",
+        "email",
+        "city",
+        "expected_entity"
+      ],
+      "rows": [
+        [
+          1,
+          "John",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          2,
+          "Jon",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          3,
+          "Johnny",
+          "Smith",
+          "jsmith@example.com",
+          "New York",
+          "Smith, John"
+        ],
+        [
+          4,
+          "Jane",
+          "Doe",
+          "jane.doe@example.com",
+          "Los Angeles",
+          "Doe, Jane"
+        ],
+        [
+          5,
+          "Janet",
+          "Doe",
+          "jane.doe@example.com",
+          "Los Angeles",
+          "Doe, Jane"
+        ],
+        [
+          6,
+          "Robert",
+          "Jones",
+          "rjones@example.com",
+          "San Francisco",
+          "Jones, Robert"
+        ],
+        [
+          7,
+          "Alice",
+          "Jones",
+          "alice.j@example.com",
+          "Seattle",
+          "Jones, Alice"
+        ]
+      ]
+    }
+  }
+}

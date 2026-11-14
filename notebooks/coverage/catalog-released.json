@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "repository": "Query-farm/vgi-match",
+  "revision": "v0.4.0",
+  "captured_at": "2026-11-14T19:44:54.213711+00:00",
+  "default_schema": "main",
+  "scope": "all_public_functions_and_tables",
+  "complete": true,
+  "evidence": [
+    {
+      "path": "coverage/released-functions.json",
+      "sha256": "9571c4eee3bd61dd9d353cd864e024d4b2cf7cb6947e0265d97c769e18164e42",
+      "description": "Complete worker-filtered functions export through actual published Haybarn"
+    },
+    {
+      "path": "coverage/released-tables.json",
+      "sha256": "7104769476c06b3383090692bad354b600ac07916c690ce777eb2f45c4972f19",
+      "description": "Complete worker-filtered tables export through actual published Haybarn"
+    },
+    {
+      "path": "coverage/released-views.json",
+      "sha256": "d9b74ea1a9dec30413617926bb736528b1f009c1c4201c1707fec8316845749c",
+      "description": "Complete worker-filtered views export through actual published Haybarn"
+    }
+  ],
+  "objects": [
+    {
+      "schema": "main",
+      "name": "match_resolve",
+      "kind": "function",
+      "signatures": [
+        "match_resolve(TABLE, DOUBLE, BOOLEAN, VARCHAR)"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "sample_customers",
+      "kind": "table",
+      "signatures": [
+        "VIEW"
+      ],
+      "authentication": "none",
+      "access": "read"
+    }
+  ]
+}
