@@ -13,6 +13,7 @@ console script, which calls ``main`` here.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import sys
 from typing import Any
@@ -20,7 +21,7 @@ from typing import Any
 from vgi import Worker
 from vgi.catalog import Catalog, Schema, View
 
-from vgi_match.tables import TABLE_FUNCTIONS
+from vgi_match.tables import COMPOSED_EXAMPLES, TABLE_FUNCTIONS, example_query_dicts
 
 _FUNCTIONS: list[type] = [*TABLE_FUNCTIONS]
 
@@ -144,11 +145,20 @@ _AGENT_TEST_TASKS = (
     '{"name": "browse-sample-customers", '
     '"prompt": "This worker ships a built-in demo relation of customer records with '
     "planted duplicates. Using that sample data, how many records have the surname "
-    'Smith?"}'
+    'Smith?"}, '
+    '{"name": "names-only-split-pairs", '
+    '"prompt": "Using the built-in demo customer sample, resolve entities on first name '
+    "and last name only (no email) with a match threshold of 0.7. Treating the sample's "
+    "ground-truth entity label as correct, how many pairs of records that belong to the "
+    'same real person end up in different resolved entities? Return a single number."}, '
+    '{"name": "records-in-duplicate-entities", '
+    '"prompt": "Resolve the built-in demo customer sample on first name, last name and '
+    "email. Return the record_id of every record whose resolved entity contains more "
+    'than one record, as a single record_id column in ascending order."}'
     "]"
 )
 
-_SCHEMA_EXAMPLE_QUERIES = (
+_BASE_SCHEMA_EXAMPLE_QUERIES = (
     '[{"description": "Resolve three records on name + email and inspect the entity '
     'each row was assigned to, grouped by cluster.", '
     '"sql": "SELECT first_name, last_name, email, cluster_id FROM '
@@ -160,6 +170,11 @@ _SCHEMA_EXAMPLE_QUERIES = (
     '"sql": "SELECT cluster_id, count(*) AS n FROM match.main.match_resolve('
     "(SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),('Bob','Ng')) AS t(first_name,last_name)), "
     "columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC\"}]"
+)
+# Schema-level list = the two single-call examples above + the composed
+# match_resolve-over-sample_customers examples (defined once, in tables.py).
+_SCHEMA_EXAMPLE_QUERIES = json.dumps(
+    [*json.loads(_BASE_SCHEMA_EXAMPLE_QUERIES), *example_query_dicts(COMPOSED_EXAMPLES)]
 )
 
 # VGI146: a browsable, credential-free demo relation so an agent can SEE the

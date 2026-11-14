@@ -18,3 +18,14 @@ tasks:
     reference_sql: "SELECT count(*) AS n FROM match.main.sample_customers WHERE last_name = 'Smith'"
     ignore_column_names: true
     unordered: true
+  # Composed tasks: match_resolve over the catalog's own sample_customers view,
+  # graded against its ground-truth expected_entity label. The view is static
+  # VALUES data and the default model is deterministic, so exact compare is safe.
+  - name: names-only-split-pairs
+    reference_sql: "WITH r AS (SELECT record_id, expected_entity, cluster_id FROM match.main.match_resolve((SELECT record_id, first_name, last_name, expected_entity FROM match.main.sample_customers), columns := 'first_name,last_name', threshold := 0.7)) SELECT count(*) AS split_pairs FROM r AS a JOIN r AS b ON a.record_id < b.record_id WHERE a.expected_entity = b.expected_entity AND a.cluster_id <> b.cluster_id"
+    ignore_column_names: true
+    unordered: true
+  - name: records-in-duplicate-entities
+    reference_sql: "SELECT record_id FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email FROM match.main.sample_customers), columns := 'first_name,last_name,email') QUALIFY count(*) OVER (PARTITION BY cluster_id) > 1 ORDER BY record_id"
+    ignore_column_names: true
+    unordered: true

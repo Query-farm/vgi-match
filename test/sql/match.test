@@ -102,5 +102,58 @@ SELECT * FROM match.match_resolve((SELECT * FROM customers),
 ----
 not found
 
+# --- Composed: match_resolve over the catalog's own sample_customers view ---
+# (mirrors the composed examples in vgi_match/tables.py; the view carries a
+# ground-truth expected_entity label).
+
+# Golden record per resolved entity.
+query IITTTI
+SELECT min(record_id) AS golden_record_id,
+       string_agg(DISTINCT first_name, ' / ' ORDER BY first_name) AS name_variants,
+       any_value(last_name) AS last_name, any_value(email) AS email,
+       any_value(city) AS city, count(*) AS source_records
+FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, city
+                               FROM match.main.sample_customers),
+                              columns := 'first_name,last_name,email')
+GROUP BY cluster_id ORDER BY golden_record_id;
+----
+1	John / Johnny / Jon	Smith	jsmith@example.com	New York	3
+4	Jane / Janet	Doe	jane.doe@example.com	Los Angeles	2
+6	Robert	Jones	rjones@example.com	San Francisco	1
+7	Alice	Jones	alice.j@example.com	Seattle	1
+
+# Pairwise evaluation against ground truth: 4 true links, no false ones.
+query IIIRR
+WITH resolved AS (
+  SELECT record_id, expected_entity, cluster_id
+  FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, expected_entity
+                                 FROM match.main.sample_customers),
+                                columns := 'first_name,last_name,email')),
+pairs AS (
+  SELECT a.cluster_id = b.cluster_id AS predicted_same,
+         a.expected_entity = b.expected_entity AS actually_same
+  FROM resolved AS a JOIN resolved AS b ON a.record_id < b.record_id)
+SELECT count(*) FILTER (WHERE predicted_same AND actually_same) AS true_pos,
+       count(*) FILTER (WHERE predicted_same AND NOT actually_same) AS false_pos,
+       count(*) FILTER (WHERE NOT predicted_same AND actually_same) AS false_neg,
+       round(true_pos / nullif(true_pos + false_pos, 0), 3) AS precision,
+       round(true_pos / nullif(true_pos + false_neg, 0), 3) AS recall
+FROM pairs;
+----
+4	0	0	1.0	1.0
+
+# Names only (no email) at threshold 0.7: Doe still links, the Smiths split.
+query TII
+SELECT expected_entity, count(*) AS records, count(DISTINCT cluster_id) AS clusters
+FROM match.main.match_resolve((SELECT record_id, first_name, last_name, expected_entity
+                               FROM match.main.sample_customers),
+                              columns := 'first_name,last_name', threshold := 0.7)
+GROUP BY expected_entity ORDER BY expected_entity;
+----
+Doe, Jane	2	1
+Jones, Alice	1	1
+Jones, Robert	1	1
+Smith, John	3	3
+
 statement ok
 DETACH match;

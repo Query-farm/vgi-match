@@ -48,6 +48,11 @@ SELECT first_name, last_name, email, cluster_id FROM match.main.match_resolve((S
 -- Count how many records collapsed into each resolved entity, largest duplicate group
 -- first.
 SELECT cluster_id, count(*) AS n FROM match.main.match_resolve((SELECT * FROM (VALUES ('Ann','Lee'),('Anne','Lee'),('Bob','Ng')) AS t(first_name,last_name)), columns := 'first_name,last_name') GROUP BY cluster_id ORDER BY n DESC;
+
+-- Build a golden record per entity from the built-in sample_customers demo: resolve on
+-- name + email, then collapse each cluster to one row (the three Smith and two Doe
+-- spellings each become one row; the two Jones stay separate).
+SELECT min(record_id) AS golden_record_id, string_agg(DISTINCT first_name, ' / ' ORDER BY first_name) AS name_variants, any_value(last_name) AS last_name, any_value(email) AS email, any_value(city) AS city, count(*) AS source_records FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, city FROM match.main.sample_customers), columns := 'first_name,last_name,email') GROUP BY cluster_id ORDER BY golden_record_id;
 ```
 
 Change `@v0.4.0` to move to a newer release.
@@ -121,20 +126,22 @@ Splink makes all-pairs matching tractable with three ideas:
    are linked, and the **connected components** of the resulting match graph
    become the entity clusters.
 
-### Training: unsupervised by default
+### Training: off by default, unsupervised EM opt-in
 
-`u` is learned by random sampling; `m` and the overall match rate are learned by
-**unsupervised Expectation-Maximisation (EM)** on the buffered data — **no
-labels required**. This is the default path: supply only `columns` and the
-worker builds a sensible default model and trains it on your data. (Splink emits
-warnings on very small inputs where some agreement levels are never observed;
-those parameters fall back to defaults and clustering still works.)
+By default **no training runs**: supply only `columns` and the worker builds a
+model from Splink's library comparisons, whose calibrated default per-level `m`
+/ `u` probabilities plus a fixed prior give **deterministic** match weights on a
+relation of any size. `train := true` additionally runs Splink's **unsupervised
+Expectation-Maximisation (EM)** on the buffered data (no labels required) to
+refine `m` and the match rate. EM is unreliable on small inputs, so it is opt-in
+and best-effort: if no EM pass can be trained, the default model is kept rather
+than raising an error.
 
 ## Functions
 
 | function | returns | does |
 |----------|---------|------|
-| `match_resolve(rel, columns, [threshold])` | every input column + `cluster_id` + `match_probability`, one row per input row | dedup / resolve entities in `rel` |
+| `match_resolve(rel, columns, [threshold], [train])` | every input column + `cluster_id` + `match_probability`, one row per input row | dedup / resolve entities in `rel` |
 
 ## Memory characteristic (read this before you point it at 50M rows)
 

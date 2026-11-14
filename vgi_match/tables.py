@@ -28,6 +28,7 @@ pass-through-plus-extra pattern.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Annotated, ClassVar
 
@@ -59,7 +60,7 @@ _PROB_FIELD = mfield(
 
 # VGI509: self-contained, catalog-qualified examples the linter executes verbatim.
 # Each uses an inline VALUES relation so it runs with no pre-existing tables.
-_EXECUTABLE_EXAMPLES = (
+_BASE_EXECUTABLE_EXAMPLES = (
     '[{"description": "Deduplicate three records on name + email; the two John/Jon '
     'Smith rows resolve to one cluster, Jane Doe to another.", '
     '"sql": "SELECT first_name, last_name, cluster_id FROM '
@@ -76,36 +77,140 @@ _EXECUTABLE_EXAMPLES = (
 )
 
 
-# VGI515: the described-example carrier the linter reads for per-example
-# descriptions. The native duckdb_functions().examples column (populated from
-# Meta.examples below) drops descriptions, so we mirror the SAME three example
-# SQL strings here as {description, sql} objects; the loader dedupes them against
-# the native carrier by whitespace-insensitive SQL, keeping this described copy.
-_EXAMPLE_QUERIES = (
-    '[{"description": "Dedup on name + email; the John/Jon Smith rows share a cluster_id, '
-    'Jane Doe is separate.", '
-    '"sql": "SELECT first_name, last_name, email, cluster_id, match_probability '
+# Single-function examples over inline VALUES relations.
+_EX_DEDUP_SQL = (
+    "SELECT first_name, last_name, email, cluster_id, match_probability "
     "FROM match.main.match_resolve((SELECT * FROM (VALUES "
     "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
     "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
-    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name\"}, "
-    '{"description": "Surface only duplicate groups by clustering and keeping entities '
-    'with more than one record.", '
-    '"sql": "SELECT cluster_id, count(*) AS rows_in_entity '
+    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name"
+)
+_EX_DUP_GROUPS_SQL = (
+    "SELECT cluster_id, count(*) AS rows_in_entity "
     "FROM match.main.match_resolve((SELECT * FROM (VALUES "
     "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
     "('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
     "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
     "columns := 'first_name,last_name,email') "
-    'GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"}, '
-    '{"description": "Stricter resolution: raise the link threshold and keep only the '
-    'more-confident matches.", '
-    '"sql": "SELECT first_name, last_name, cluster_id, match_probability '
+    "GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"
+)
+_EX_STRICT_SQL = (
+    "SELECT first_name, last_name, cluster_id, match_probability "
     "FROM match.main.match_resolve((SELECT * FROM (VALUES "
     "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
     "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
     "columns := 'first_name,last_name,email', threshold := 0.9) "
-    'WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"}]'
+    "WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"
+)
+
+# Composed examples: match_resolve driven by the catalog's own
+# match.main.sample_customers view (offline, deterministic VALUES data with a
+# ground-truth expected_entity label). worker.py also publishes COMPOSED_EXAMPLES
+# in the schema-level list -- each SQL is defined only here.
+EX_GOLDEN_RECORD_SQL = (
+    "SELECT min(record_id) AS golden_record_id, "
+    "string_agg(DISTINCT first_name, ' / ' ORDER BY first_name) AS name_variants, "
+    "any_value(last_name) AS last_name, any_value(email) AS email, any_value(city) AS city, "
+    "count(*) AS source_records "
+    "FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, city "
+    "FROM match.main.sample_customers), columns := 'first_name,last_name,email') "
+    "GROUP BY cluster_id ORDER BY golden_record_id"
+)
+EX_PAIRWISE_EVAL_SQL = (
+    "WITH resolved AS (SELECT record_id, expected_entity, cluster_id "
+    "FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, "
+    "expected_entity FROM match.main.sample_customers), "
+    "columns := 'first_name,last_name,email')), "
+    "pairs AS (SELECT a.cluster_id = b.cluster_id AS predicted_same, "
+    "a.expected_entity = b.expected_entity AS actually_same "
+    "FROM resolved AS a JOIN resolved AS b ON a.record_id < b.record_id) "
+    "SELECT count(*) FILTER (WHERE predicted_same AND actually_same) AS true_pos, "
+    "count(*) FILTER (WHERE predicted_same AND NOT actually_same) AS false_pos, "
+    "count(*) FILTER (WHERE NOT predicted_same AND actually_same) AS false_neg, "
+    "round(true_pos / nullif(true_pos + false_pos, 0), 3) AS precision, "
+    "round(true_pos / nullif(true_pos + false_neg, 0), 3) AS recall FROM pairs"
+)
+EX_NAMES_ONLY_SPLIT_SQL = (
+    "SELECT expected_entity, count(*) AS records, count(DISTINCT cluster_id) AS clusters "
+    "FROM match.main.match_resolve((SELECT record_id, first_name, last_name, expected_entity "
+    "FROM match.main.sample_customers), columns := 'first_name,last_name', threshold := 0.7) "
+    "GROUP BY expected_entity ORDER BY expected_entity"
+)
+
+_GOLDEN_RECORD_EXAMPLE = FunctionExample(
+    sql=EX_GOLDEN_RECORD_SQL,
+    description=(
+        "Build a golden record per entity: resolve the built-in sample_customers demo "
+        "on name + email and collapse each cluster to one row (lowest record_id, the "
+        "first-name spellings seen, email, city, and how many source records merged) -- "
+        "the three Smith variants and two Doe variants each become one row, the two "
+        "Jones stay separate."
+    ),
+)
+
+COMPOSED_EXAMPLES: list[FunctionExample] = [
+    _GOLDEN_RECORD_EXAMPLE,
+    FunctionExample(
+        sql=EX_PAIRWISE_EVAL_SQL,
+        description=(
+            "Score the resolver against sample_customers' ground-truth expected_entity "
+            "label: self-join the resolved rows into record pairs and count true/false "
+            "positive and false negative links, with pairwise precision and recall "
+            "(4 true links, no false ones: precision = recall = 1.0)."
+        ),
+    ),
+    FunctionExample(
+        sql=EX_NAMES_ONLY_SPLIT_SQL,
+        description=(
+            "Check what dropping email costs: resolve sample_customers on first + last "
+            "name only at threshold 0.7 and count clusters per ground-truth entity -- "
+            "Jane/Janet Doe still link, but the John/Jon/Johnny Smith variants split "
+            "into three clusters (under-merging)."
+        ),
+    ),
+]
+
+# Meta.examples (native duckdb_functions().examples) and the VGI515 described
+# carrier below are both built from this one list. Composed examples sit in
+# positions 2-4 so agents (shown the first 5 per function) see them.
+_FUNCTION_EXAMPLES: list[FunctionExample] = [
+    FunctionExample(
+        sql=_EX_DEDUP_SQL,
+        description="Dedup on name + email; the John/Jon Smith rows share a cluster_id, Jane Doe is separate.",
+    ),
+    *COMPOSED_EXAMPLES,
+    FunctionExample(
+        sql=_EX_DUP_GROUPS_SQL,
+        description=("Surface only duplicate groups by clustering and keeping entities with more than one record."),
+    ),
+    FunctionExample(
+        sql=_EX_STRICT_SQL,
+        description=("Stricter resolution: raise the link threshold and keep only the more-confident matches."),
+    ),
+]
+
+
+def example_query_dicts(examples: list[FunctionExample]) -> list[dict[str, str]]:
+    """Convert examples to the ``vgi.example_queries`` {description, sql} objects."""
+    return [{"description": e.description, "sql": e.sql} for e in examples]
+
+
+def example_queries_json(examples: list[FunctionExample]) -> str:
+    """Serialise examples as a ``vgi.example_queries`` JSON list of {description, sql}."""
+    return json.dumps(example_query_dicts(examples))
+
+
+# VGI515: the described-example carrier the linter reads for per-example
+# descriptions (the native duckdb_functions().examples column drops them).
+_EXAMPLE_QUERIES = example_queries_json(_FUNCTION_EXAMPLES)
+
+# VGI509 runnable set: the inline-VALUES examples plus the golden-record composed
+# example (offline + deterministic: it reads only the VALUES-backed sample view).
+_EXECUTABLE_EXAMPLES = json.dumps(
+    [
+        *json.loads(_BASE_EXECUTABLE_EXAMPLES),
+        *example_query_dicts([_GOLDEN_RECORD_EXAMPLE]),
+    ]
 )
 
 
@@ -192,41 +297,7 @@ class MatchResolve(SinkBuffer[MatchResolveArgs, DrainState]):
             "link customer, contact, or product records that exact GROUP BY / JOIN miss."
         )
         categories = ["entity-resolution", "record-linkage", "dedup"]
-        examples = [
-            FunctionExample(
-                sql=(
-                    "SELECT first_name, last_name, email, cluster_id, match_probability "
-                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
-                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
-                    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
-                    "columns := 'first_name,last_name,email') ORDER BY cluster_id, first_name"
-                ),
-                description="Dedup on name + email; the John/Jon Smith rows share a cluster_id, Jane Doe is separate",
-            ),
-            FunctionExample(
-                sql=(
-                    "SELECT cluster_id, count(*) AS rows_in_entity "
-                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
-                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
-                    "('Jane','Doe','jane@y.com'),('Jayne','Doe','jane@y.com'),"
-                    "('Bob','Ng','bob@z.com')) AS t(first_name,last_name,email)), "
-                    "columns := 'first_name,last_name,email') "
-                    "GROUP BY cluster_id HAVING count(*) > 1 ORDER BY rows_in_entity DESC"
-                ),
-                description="Surface only duplicate groups by clustering and keeping entities with >1 record",
-            ),
-            FunctionExample(
-                sql=(
-                    "SELECT first_name, last_name, cluster_id, match_probability "
-                    "FROM match.main.match_resolve((SELECT * FROM (VALUES "
-                    "('John','Smith','john@x.com'),('Jon','Smith','john@x.com'),"
-                    "('Jane','Doe','jane@y.com')) AS t(first_name,last_name,email)), "
-                    "columns := 'first_name,last_name,email', threshold := 0.9) "
-                    "WHERE match_probability >= 0.5 ORDER BY cluster_id, first_name"
-                ),
-                description="Stricter resolution: raise the link threshold and keep only the more-confident matches",
-            ),
-        ]
+        examples = _FUNCTION_EXAMPLES
         tags = {
             "vgi.title": "Resolve & Cluster Entities",
             "vgi.category": "Entity Resolution",
