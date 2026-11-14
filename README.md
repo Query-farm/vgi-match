@@ -192,3 +192,7 @@ Written by [Query.Farm](https://query.farm).
 
 Copyright 2026 Query Farm LLC - https://query.farm
 
+
+## Notebooks
+
+[Executed SQL and visualization walkthrough](notebooks/README.md): audit duplicate groups against separately authored labels and explore threshold sensitivity.
