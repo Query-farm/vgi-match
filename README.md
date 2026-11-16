@@ -17,7 +17,7 @@ same real-world entity.
 
 ```sql
 INSTALL vgi FROM community; LOAD vgi;
-ATTACH 'match' (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.4.0 vgi-match');
+ATTACH 'match' (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.4.1 vgi-match');
 
 -- Dedup customers on name + email. Rows sharing cluster_id are the same person.
 SELECT * FROM match.match_resolve(
@@ -39,7 +39,7 @@ The worker isn't on PyPI; [uv](https://docs.astral.sh/uv/) runs it straight from
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'match' AS match (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.4.0 vgi-match');
+ATTACH 'match' AS match (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-match@v0.4.1 vgi-match');
 
 -- Resolve three records on name + email and inspect the entity each row was assigned to,
 -- grouped by cluster.
@@ -55,14 +55,14 @@ SELECT cluster_id, count(*) AS n FROM match.main.match_resolve((SELECT * FROM (V
 SELECT min(record_id) AS golden_record_id, string_agg(DISTINCT first_name, ' / ' ORDER BY first_name) AS name_variants, any_value(last_name) AS last_name, any_value(email) AS email, any_value(city) AS city, count(*) AS source_records FROM match.main.match_resolve((SELECT record_id, first_name, last_name, email, city FROM match.main.sample_customers), columns := 'first_name,last_name,email') GROUP BY cluster_id ORDER BY golden_record_id;
 ```
 
-Change `@v0.4.0` to move to a newer release.
+Change `@v0.4.1` to move to a newer release.
 
 ### Other ways to run it
 
 - **Docker** (the image bundles the worker and its dependencies):
 
   ```sql
-  ATTACH 'match' AS match (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-match:0.4.0');
+  ATTACH 'match' AS match (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-match:0.4.1');
   ```
 
 - **From a local checkout** (`git clone https://github.com/Query-farm/vgi-match`), point `LOCATION` at `uv run --project /path/to/vgi-match vgi-match`.
@@ -76,7 +76,7 @@ To run the worker from a source checkout or install its console scripts yourself
 uv run match_worker.py
 
 # Or install the console script:
-uv tool install git+https://github.com/Query-farm/vgi-match@v0.4.0    # provides `vgi-match` (stdio) and `vgi-match-http`
+uv tool install git+https://github.com/Query-farm/vgi-match@v0.4.1    # provides `vgi-match` (stdio) and `vgi-match-http`
 ```
 
 ## Data flow: one relation in, the rows back plus a cluster id
